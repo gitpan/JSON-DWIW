@@ -1,0 +1,88 @@
+NAME
+     JSON::DWIW - JSON converter that Does What I Want
+
+SYNOPSIS
+     my $json_obj = JSON::DWIW->new
+     my $data = $json_obj->from_json($json_str);
+     my $str = $json_obj->to_json($data);
+
+     my $data = JSON::DWIW->from_json($json_str);
+     my $str = JSON:DWIW->to_json($data);
+ 
+DESCRIPTION
+    Other JSON modules require setting several parameters before calling the
+    conversion methods to do what I want. This module does things by default
+    that I think should be done when working with JSON in Perl. This module
+    also encodes and decodes faster than JSON.pm or JSON::Syck.
+
+    This means that any piece of data in Perl will get converted to
+    something in JSON instead of throwing an exception. It also means that
+    output will be strict JSON, while accepted input will be flexible,
+    without having to set any options.
+
+  Encoding
+    Perl objects get encoded as their underlying data structure. For
+    example, a blessed hash ref will be represented as an object in JSON, a
+    blessed array will be represented as an array. etc. A reference to a
+    scalar is dereferenced and represented as the scalar itself. Globs,
+    filehandles, etc., get stringified.
+
+  Decoding
+    When decoding, null, true, and false become undef, 1, and 0,
+    repectively.
+
+METHODS
+  my $json_str = to_json($data)
+     Returns the JSON representation of $data (arbitrary
+     datastructure).  See http://www.json.org/ for details
+
+  my ($data, $error_msg) = from_json($json_str)
+     Returns the Perl data structure for the given JSON string.  The
+     value for true becomes 1, false becomes 0, and null gets
+     converted to undef.
+
+     Called in list context, this method returns a where the first
+     element is the data and the second element is the error message,
+     if any.  If $error_msg is defined, there was a problem parsing
+     the JSON string, and $data will be undef.
+
+BENCHMARKS
+    Benchmark using a small amount of data:
+
+        Encode (50000 iterations):
+        ==========================
+                      Rate       JSON JSON::Syck JSON::DWIW
+        JSON        2820/s         --       -70%       -88%
+        JSON::Syck  9328/s       231%         --       -60%
+        JSON::DWIW 23474/s       732%       152%         --
+
+        Decode (50000 iterations):
+        ==========================
+                      Rate       JSON JSON::Syck JSON::DWIW
+        JSON        2168/s         --       -79%       -91%
+        JSON::Syck 10504/s       384%         --       -55%
+        JSON::DWIW 23364/s       978%       122%         --
+
+DEPENDENCIES
+    Perl 5.6 or later
+
+AUTHOR
+    Don Owens <don@regexguy.com>
+
+LICENSE AND COPYRIGHT
+    Copyright (c) 2007 Don Owens <don@regexguy.com>. All rights reserved.
+
+    This is free software; you can redistribute it and/or modify it under
+    the same terms as Perl itself. See perlartistic.
+
+    This program is distributed in the hope that it will be useful, but
+    WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+SEE ALSO
+     JSON
+     JSON::Syck (included in YAML::Syck)
+
+VERSION
+     0.01
+
