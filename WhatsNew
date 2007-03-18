@@ -1,0 +1,4 @@
+Version 0.02
+    * Speed optimizations
+    * Fixed a memory leak
+    * Added support for spurious commas in hashes and arrays

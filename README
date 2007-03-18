@@ -2,7 +2,7 @@ NAME
      JSON::DWIW - JSON converter that Does What I Want
 
 SYNOPSIS
-     my $json_obj = JSON::DWIW->new
+     my $json_obj = JSON::DWIW->new;
      my $data = $json_obj->from_json($json_str);
      my $str = $json_obj->to_json($data);
 
@@ -13,7 +13,8 @@ DESCRIPTION
     Other JSON modules require setting several parameters before calling the
     conversion methods to do what I want. This module does things by default
     that I think should be done when working with JSON in Perl. This module
-    also encodes and decodes faster than JSON.pm or JSON::Syck.
+    also encodes and decodes faster than JSON.pm and JSON::Syck in my
+    benchmarks.
 
     This means that any piece of data in Perl will get converted to
     something in JSON instead of throwing an exception. It also means that
@@ -31,10 +32,32 @@ DESCRIPTION
     When decoding, null, true, and false become undef, 1, and 0,
     repectively.
 
+    The parser is flexible in what it accepts and handles some things not in
+    the JSON spec:
+
+    quotes
+         Both single and double quotes are allowed for quoting a string, e.g.,
+
+            [ "string1", 'string2' ]
+
+    bare keys
+         Object/hash keys can be bare if they look like an identifier, e.g.,
+
+            { var1: "myval1", var2: "myval2" }
+
+    extra commas
+         Extra commas in objects/hashes and arrays are ignored, e.g.,
+
+            [1,2,3,,,4,]
+
+         becomes a 4 element array containing 1, 2, 3, and 4.
+
 METHODS
   my $json_str = to_json($data)
      Returns the JSON representation of $data (arbitrary
-     datastructure).  See http://www.json.org/ for details
+     datastructure).  See http://www.json.org/ for details.
+
+     Aliases: toJson, toJSON, objToJson
 
   my ($data, $error_msg) = from_json($json_str)
      Returns the Perl data structure for the given JSON string.  The
@@ -46,22 +69,44 @@ METHODS
      if any.  If $error_msg is defined, there was a problem parsing
      the JSON string, and $data will be undef.
 
+     Aliases: fromJson, fromJSON, jsonToObj
+
 BENCHMARKS
-    Benchmark using a small amount of data:
+     Latest benchmarks against JSON and JSON::Syck run on my MacBook
+     Pro:
+
+     Using a small data set:
 
         Encode (50000 iterations):
         ==========================
                       Rate       JSON JSON::Syck JSON::DWIW
-        JSON        2820/s         --       -70%       -88%
-        JSON::Syck  9328/s       231%         --       -60%
-        JSON::DWIW 23474/s       732%       152%         --
+        JSON        2670/s         --       -72%       -89%
+        JSON::Syck  9416/s       253%         --       -61%
+        JSON::DWIW 24155/s       805%       157%         --
 
         Decode (50000 iterations):
         ==========================
                       Rate       JSON JSON::Syck JSON::DWIW
-        JSON        2168/s         --       -79%       -91%
-        JSON::Syck 10504/s       384%         --       -55%
-        JSON::DWIW 23364/s       978%       122%         --
+        JSON        2300/s         --       -81%       -93%
+        JSON::Syck 12195/s       430%         --       -64%
+        JSON::DWIW 33784/s      1369%       177%         --
+
+     Using a larger data set (8KB JSON string) generated from Yahoo!
+     Local's search API (http://nanoref.com/yahooapis/mgPdGg)
+
+        Encode (1000 iterations):
+        =========================
+                    Rate       JSON JSON::Syck JSON::DWIW
+        JSON       135/s         --       -54%       -74%
+        JSON::Syck 290/s       115%         --       -45%
+        JSON::DWIW 526/s       291%        82%         --
+
+        Decode (1000 iterations):
+        =========================
+                     Rate       JSON JSON::Syck JSON::DWIW
+        JSON       35.9/s         --       -92%       -94%
+        JSON::Syck  444/s      1137%         --       -25%
+        JSON::DWIW  595/s      1557%        34%         --
 
 DEPENDENCIES
     Perl 5.6 or later
@@ -84,5 +129,5 @@ SEE ALSO
      JSON::Syck (included in YAML::Syck)
 
 VERSION
-     0.01
+     0.02
 

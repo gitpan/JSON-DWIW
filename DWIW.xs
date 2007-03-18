@@ -30,6 +30,8 @@ extern "C" {
 #define UTF8_IS_INVARIANT(c) (((UV)c) < 0x80)
 #endif
 
+#define kCommasAreWhitespace 1
+
 typedef struct {
 	STRLEN len;
 	char * data;
@@ -124,7 +126,7 @@ json_peek_char(json_context *ctx) {
 }
 
 static void
-json_eat_whitespace(json_context *ctx) {
+json_eat_whitespace(json_context *ctx, UV flags) {
 	UV this_char;
 	int break_out = 0;
 
@@ -135,47 +137,56 @@ json_eat_whitespace(json_context *ctx) {
 		JSON_DEBUG("looking at %04x", this_char);
 		
 		switch (this_char) {
-		case 0x20:
-		case 0x09:
-		case 0x0a:
-		case 0x0d:
-			this_char = json_next_char(ctx);
-			break;
-			
-		case '/':
-			this_char = json_next_char(ctx);
-			if (this_char == '/') {
-				while (ctx->pos < ctx->len) {
-					this_char = json_next_char(ctx);
-					if (this_char == 0x0a || this_char == 0x0d) {
-						/* FIXME: should peak at the next to see if windows line ending, etc. */
-						break;
-					}
-				}
-			}
-			else if (this_char == '*') {
-				this_char = json_next_char(ctx);
-				while (ctx->pos < ctx->len) {
-					if (this_char == '*') {
-						this_char = json_next_char(ctx);
-						if (this_char == '/') {
-							/* end of comment */
-							break;
-						}
-					}
-					else {
-						this_char = json_next_char(ctx);
-					}
-				}
-			}
-			else {
-				/* syntax error -- can't have a '/' by itself */
-			}
-			break;
+		  case 0x20:
+		  case 0x09:
+		  case 0x0a:
+		  case 0x0d:
+			  this_char = json_next_char(ctx);
+			  break;
 
-		default:
-			break_out = 1;
-			break;
+		  case ',':
+			  if (flags & kCommasAreWhitespace) {
+				  this_char = json_next_char(ctx);
+			  }
+			  else {
+				  break_out = 1;
+			  }
+			  break;
+			
+		  case '/':
+			  this_char = json_next_char(ctx);
+			  if (this_char == '/') {
+				  while (ctx->pos < ctx->len) {
+					  this_char = json_next_char(ctx);
+					  if (this_char == 0x0a || this_char == 0x0d) {
+						  /* FIXME: should peak at the next to see if windows line ending, etc. */
+						  break;
+					  }
+				  }
+			  }
+			  else if (this_char == '*') {
+				  this_char = json_next_char(ctx);
+				  while (ctx->pos < ctx->len) {
+					  if (this_char == '*') {
+						  this_char = json_next_char(ctx);
+						  if (this_char == '/') {
+							  /* end of comment */
+							  break;
+						  }
+					  }
+					  else {
+						  this_char = json_next_char(ctx);
+					  }
+				  }
+			  }
+			  else {
+				  /* syntax error -- can't have a '/' by itself */
+			  }
+			  break;
+
+		  default:
+			  break_out = 1;
+			  break;
 		}
 		
 		if (break_out) {
@@ -347,6 +358,46 @@ json_parse_word(json_context *ctx, SV * tmp_str, int is_identifier) {
 	return (SV *)&PL_sv_undef;
 }
 
+/* Finds the end of the current string by looking for the appropriate
+   closing quote char that is not escaped.  Since the parsed string
+   will always be less than or equal to the size of the encoded
+   string, this function returns an upper boundary on the size needed
+   for the resulting string.  If the Perl string is preallocated at
+   this length, parsing runs faster.
+*/
+static STRLEN
+find_length_of_string(json_context *ctx, UV boundary) {
+	STRLEN pos = ctx->pos;
+	STRLEN len = 0;
+	UV this_char = 0x00;
+	int escaped = 0;
+
+	while (pos < ctx->len) {
+		if (UTF8_IS_INVARIANT(ctx->data[pos])) {
+			this_char = ctx->data[pos];
+			pos++;
+		}
+		else {
+			this_char = convert_utf8_to_uv((unsigned char *)&(ctx->data[pos]), &len);
+			pos += len;
+		}
+
+		if (escaped) {
+			escaped = 0;
+		}
+		else {
+			if (this_char == boundary) {
+				return pos - ctx->pos;
+			}
+			else if (this_char == '\\') {
+				escaped = 1;
+			}
+		}
+	}
+	
+	return 0;
+}
+
 static SV *
 json_parse_string(json_context *ctx, SV * tmp_str) {
 	UV looking_at;
@@ -360,26 +411,35 @@ json_parse_string(json_context *ctx, SV * tmp_str) {
 	char * char_buf;
 	int i;
 	U8 * tmp_buf = NULL;
+	STRLEN max_str_size = 0;
 
 	unicode_digits[4] = '\x00';
-
-	if (tmp_str) {
-		sv_setpvn(tmp_str, "", 0);
-		rv = tmp_str;
-	}
 
 	looking_at = json_peek_char(ctx);
 	if (looking_at != '"' && looking_at != '\'') {
 		return (SV *)&PL_sv_undef;
 	}
 
-	/* FIXME: compute an estimate for the buffer size instead of passing zero */
-	rv = newSVpv("", 0);
-
 	boundary = looking_at;
 	this_uv = json_next_char(ctx);
 	next_uv = json_peek_char(ctx);
 	orig_start_pos = ctx->pos;
+
+	/* FIXME: compute an estimate for the buffer size instead of passing zero */
+	max_str_size = find_length_of_string(ctx, boundary);
+	JSON_DEBUG("computed max size %d at pos %d", max_str_size, ctx->pos);
+
+	/* tmp_str = NULL; */
+	if (tmp_str) {
+		rv = tmp_str;
+		SvGROW(rv, max_str_size);
+	}
+	else {
+		rv = newSV(max_str_size);
+	}
+
+	sv_setpvn(rv, "", 0);
+	/* rv = newSVpv("", 0); */
 	
 	JSON_DEBUG("HERE, json_parse_string(), looking for boundary %04x", boundary);
 	while (ctx->pos < ctx->len) {
@@ -389,7 +449,6 @@ json_parse_string(json_context *ctx, SV * tmp_str) {
 		if (next_uv == boundary) {
 			JSON_DEBUG("found boundary %04x", boundary);
 			return rv;
-
 		}
 		else if (this_uv == '\\') {
 			this_uv = json_next_char(ctx);
@@ -451,7 +510,7 @@ json_parse_string(json_context *ctx, SV * tmp_str) {
 						else {
 							ctx->error = newSVpvf("bad unicode character specification at byte %d",
 								ctx->pos - 1);
-							if (rv) {
+							if (rv && !tmp_str) {
 								SvREFCNT_dec(rv);
 								rv = NULL;
 							}
@@ -462,7 +521,7 @@ json_parse_string(json_context *ctx, SV * tmp_str) {
 					if (i != 4) {
 						ctx->error = newSVpvf("bad unicode character specification at byte %d",
 							ctx->pos - 1);
-						if (rv) {
+						if (rv && !tmp_str) {
 							SvREFCNT_dec(rv);
 							rv = NULL;
 						}
@@ -509,6 +568,7 @@ json_parse_object(json_context *ctx) {
 	SV * key;
 	SV * val;
 	SV * tmp_str;
+	int found_comma = 0;
 
 	looking_at = json_peek_char(ctx);
 	if (looking_at != '{') {
@@ -520,7 +580,7 @@ json_parse_object(json_context *ctx) {
 
 	json_next_char(ctx);
 
-	json_eat_whitespace(ctx);
+	json_eat_whitespace(ctx, kCommasAreWhitespace);
 	
 	looking_at = json_peek_char(ctx);
 
@@ -530,8 +590,13 @@ json_parse_object(json_context *ctx) {
 	}
 
 	key = tmp_str = sv_newmortal();
+
+	/* assign something so we can call SvGROW() later without causing a bus error */
+	sv_setpvn(key, "DEADBEEF", 8);
+
 	while (ctx->pos < ctx->len) {
 		looking_at = json_peek_char(ctx);
+		found_comma = 0;
 
 		if (looking_at == '"' || looking_at == '\'') {
 			key = json_parse_string(ctx, key);
@@ -543,7 +608,7 @@ json_parse_object(json_context *ctx) {
 
 		JSON_DEBUG("looking at %04x at %d", looking_at, ctx->pos);
 
-		json_eat_whitespace(ctx);
+		json_eat_whitespace(ctx, 0);
 
 		looking_at = json_peek_char(ctx);
 		
@@ -555,7 +620,7 @@ json_parse_object(json_context *ctx) {
 		}
 		json_next_char(ctx);
 		
-		json_eat_whitespace(ctx);
+		json_eat_whitespace(ctx, 0);
 		
 		val = json_parse_value(ctx, 0);
 		
@@ -565,9 +630,14 @@ json_parse_object(json_context *ctx) {
 			key = tmp_str;
 		}
 
-		json_eat_whitespace(ctx);
+		json_eat_whitespace(ctx, 0);
 
 		looking_at = json_peek_char(ctx);
+		if (looking_at == ',') {
+			found_comma = 1;
+			json_eat_whitespace(ctx, kCommasAreWhitespace);
+			looking_at = json_peek_char(ctx);
+		}
 		
 		switch (looking_at) {
 		case '}':
@@ -577,14 +647,15 @@ json_parse_object(json_context *ctx) {
 			
 		case ',':
 			json_next_char(ctx);
-			json_eat_whitespace(ctx);
+			json_eat_whitespace(ctx, 0);
 			break;
 
 		default:
-			JSON_DEBUG("bad object at %d (%c)", ctx->pos, looking_at);
-			ctx->error = newSVpvf("bad object at byte %d (%04x)", ctx->pos, looking_at);
-			return (SV *)&PL_sv_undef;
-			
+			if (!found_comma) {
+				JSON_DEBUG("bad object at %d (%c)", ctx->pos, looking_at);
+				ctx->error = newSVpvf("bad object at byte %d (%04x)", ctx->pos, looking_at);
+				return (SV *)&PL_sv_undef;
+			}
 			break;
 		}
 	}
@@ -599,12 +670,13 @@ json_parse_array(json_context *ctx) {
 	unsigned char looking_at;
 	AV * array;
 	SV * val;
+	int found_comma = 0;
 
 	looking_at = json_peek_byte(ctx);
 	if (looking_at != '[') {
 		return (SV *)&PL_sv_undef;
 	}
-	json_eat_whitespace(ctx);
+	json_eat_whitespace(ctx, 0);
 
 	array = newAV();
 
@@ -616,31 +688,41 @@ json_parse_array(json_context *ctx) {
 	}
 
 	while (ctx->pos < ctx->len) {
-		json_eat_whitespace(ctx);
+		found_comma = 0;
+
+		json_eat_whitespace(ctx, kCommasAreWhitespace);
 
 	    val = json_parse_value(ctx, 0);
 		av_push(array, val);
 
-		json_eat_whitespace(ctx);
+		json_eat_whitespace(ctx, 0);
 
 		looking_at = json_peek_byte(ctx);
+		if (looking_at == ',') {
+			found_comma = 1;
+			json_eat_whitespace(ctx, kCommasAreWhitespace);
+			looking_at = json_peek_byte(ctx);
+		}
 		
 		switch (looking_at) {
-		case ']':
-			json_next_byte(ctx);
-			return (SV *)newRV_noinc((SV *)array);
-			break;
-			
-		case ',':
-			json_next_byte(ctx);
-			json_eat_whitespace(ctx);
-			break;
-
-		default:
-			JSON_DEBUG("bad array at %d", ctx->pos);
-			ctx->error = newSVpvf("bad array at byte %d", ctx->pos);
-			return (SV *)&PL_sv_undef;
-			break;
+		  case ']':
+			  json_next_byte(ctx);
+			  return (SV *)newRV_noinc((SV *)array);
+			  break;
+			  
+		  case ',':
+			  json_next_byte(ctx);
+			  json_eat_whitespace(ctx, kCommasAreWhitespace);
+			  /* json_eat_whitespace(ctx, 0); */
+			  break;
+			  
+		  default:
+			  if (!found_comma) {
+				  JSON_DEBUG("bad array at %d", ctx->pos);
+				  ctx->error = newSVpvf("bad array at byte %d", ctx->pos);
+				  return (SV *)&PL_sv_undef;
+			  }
+			  break;
 		}
 	}
 
@@ -656,7 +738,7 @@ json_parse_value(json_context *ctx, int is_identifier) {
 
 	JSON_DEBUG("before eat_whitespace");
 
-	json_eat_whitespace(ctx);
+	json_eat_whitespace(ctx, 0);
 
 	JSON_DEBUG("after eat_whitespace");
 	
