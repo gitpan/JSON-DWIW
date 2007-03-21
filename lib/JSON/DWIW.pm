@@ -96,7 +96,7 @@ require DynaLoader;
 package JSON::DWIW;
 @EXPORT = qw( );
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 package JSON::DWIW;
 bootstrap JSON::DWIW $VERSION;
@@ -250,7 +250,7 @@ PURPOSE.
 
 =head1 VERSION
 
- 0.02
+ 0.03
 
 =cut
 

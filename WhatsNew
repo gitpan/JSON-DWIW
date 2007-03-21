@@ -1,3 +1,6 @@
+Version 0.03
+    * Fixed bug where parsing an empty array would sometimes cause an error
+
 Version 0.02
     * Speed optimizations
     * Fixed a memory leak

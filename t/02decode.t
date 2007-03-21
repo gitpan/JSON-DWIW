@@ -9,7 +9,7 @@ use Test;
 
 # main
 {
-    BEGIN { plan tests => 7 }
+    BEGIN { plan tests => 13 }
 
     use JSON::DWIW;
 
@@ -18,6 +18,7 @@ use Test;
     my $json_obj = JSON::DWIW->new;
     my $data = $json_obj->from_json($json_str);
 
+    # complex value
     my $pass = 1;
     if ($data->{var1} eq 'val1' and $data->{var3} eq 'val3') {
         if ($data->{var2}) {
@@ -50,10 +51,12 @@ use Test;
     
     ok($pass);
 
+    # string
     $json_str = '"val1"';
     $data = $json_obj->from_json($json_str);
     ok($data eq 'val1');
 
+    # numbers
     $json_str = '567';
     $data = $json_obj->from_json($json_str);
     ok($data == 567);
@@ -74,12 +77,45 @@ use Test;
     $data = $json_obj->from_json($json_str);
     ok($data == 0.5);
 
+    # empty array
+    $json_str = '[]';
+    $data = $json_obj->from_json($json_str);
+    ok(ref($data) eq 'ARRAY' and scalar(@$data) == 0);
+
+    # empty hash
+    $json_str = '{}';
+    $data = $json_obj->from_json($json_str);
+    ok(ref($data) eq 'HASH' and scalar(keys(%$data)) == 0);
+
+    # empty array as value in hash
+    $json_str = '{"test_empty":[]}';
+    $data = $json_obj->from_json($json_str);
+    ok(ref($data) eq 'HASH' and scalar(keys(%$data)) == 1 and ref($data->{test_empty}) eq 'ARRAY'
+      and scalar(@{$data->{test_empty}}) == 0);
+
+    # empty hash as value in a hash
+    $json_str = '{"test_empty":{}}';
+    $data = $json_obj->from_json($json_str);
+    ok(ref($data) eq 'HASH' and scalar(keys(%$data)) == 1 and ref($data->{test_empty}) eq 'HASH'
+       and scalar(keys %{$data->{test_empty}}) == 0);
+
+    $json_str = '{"test_empty_hash":{},"test_empty_array":[]}';
+    $data = $json_obj->from_json($json_str);
+    ok(ref($data) eq 'HASH' and scalar(keys(%$data)) == 2
+       and ref($data->{test_empty_hash}) eq 'HASH'
+       and scalar(keys %{$data->{test_empty_hash}}) == 0
+       and ref($data->{test_empty_array}) eq 'ARRAY'
+       and scalar(@{$data->{test_empty_array}}) == 0
+      );
 
 
+    # comment
+    $json_str = '{"test_empty_hash":{} /*,"test_empty_array":[] */}';
+    $data = $json_obj->from_json($json_str);
+    ok(ref($data) eq 'HASH' and scalar(keys(%$data)) == 1
+       and ref($data->{test_empty_hash}) eq 'HASH'
+       and scalar(keys %{$data->{test_empty_hash}}) == 0);
     
-#     use Data::Dumper;
-#     print STDERR Dumper($test_data) . "\n\n";
-
 }
 
 exit 0;

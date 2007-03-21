@@ -20,7 +20,10 @@ extern "C" {
 #endif
 #endif
 
-#if 0
+#define JSON_DO_DEBUG 0
+#define JSON_DO_EXTENDED_ERRORS 1
+
+#if JSON_DO_DEBUG
 #define JSON_DEBUG(...) printf("%s (%d) - ", __FILE__, __LINE__); printf(__VA_ARGS__); printf("\n"); fflush(stdout)
 #else
 #define JSON_DEBUG(...)
@@ -31,6 +34,22 @@ extern "C" {
 #endif
 
 #define kCommasAreWhitespace 1
+
+static SV *
+_build_error_str(const char *file, STRLEN line_num, SV *error_str) {
+	SV * where_str = newSVpvf(" (%s line %d)", file, line_num);
+	sv_catsv(error_str, where_str);
+	SvREFCNT_dec(where_str);
+	
+	return error_str;
+}
+
+#if JSON_DO_EXTENDED_ERRORS
+#define JSON_ERROR(...) _build_error_str(__FILE__, __LINE__, newSVpvf(__VA_ARGS__))
+#else
+#define JSON_ERROR(...) newSVpvf(__VA_ARGS__)
+#endif
+
 
 typedef struct {
 	STRLEN len;
@@ -88,9 +107,8 @@ json_next_char(json_context *ctx) {
 	UV uv = 0;
 	STRLEN len = 0;
 
-	JSON_DEBUG("pos=%d, len=%d", ctx->pos, ctx->len);
-
 	if (ctx->pos >= ctx->len) {
+		JSON_DEBUG("pos=%d, len=%d", ctx->pos, ctx->len);
 		return 0;
 	}
 
@@ -102,6 +120,8 @@ json_next_char(json_context *ctx) {
 		uv = convert_utf8_to_uv((unsigned char *)&(ctx->data[ctx->pos]), &len);
 		ctx->pos += len;
 	}
+
+	JSON_DEBUG("pos=%d, len=%d, char=%c (%#04x)", ctx->pos, ctx->len, uv>0x80 ? '?' : (char)uv, uv);
 
 	return uv;
 }
@@ -134,19 +154,19 @@ json_eat_whitespace(json_context *ctx, UV flags) {
 
 	while (ctx->pos < ctx->len) {
 		this_char = json_peek_char(ctx);
-		JSON_DEBUG("looking at %04x", this_char);
+		JSON_DEBUG("looking at %04x at pos %d", this_char, ctx->pos);
 		
 		switch (this_char) {
 		  case 0x20:
 		  case 0x09:
 		  case 0x0a:
 		  case 0x0d:
-			  this_char = json_next_char(ctx);
+			  json_next_char(ctx);
 			  break;
 
 		  case ',':
 			  if (flags & kCommasAreWhitespace) {
-				  this_char = json_next_char(ctx);
+				  json_next_char(ctx);
 			  }
 			  else {
 				  break_out = 1;
@@ -154,10 +174,14 @@ json_eat_whitespace(json_context *ctx, UV flags) {
 			  break;
 			
 		  case '/':
-			  this_char = json_next_char(ctx);
+			  json_next_char(ctx);
+			  this_char = json_peek_char(ctx);
+			  JSON_DEBUG("looking at %04x at pos %d", this_char, ctx->pos);
 			  if (this_char == '/') {
+				  JSON_DEBUG("in C++ style comment at pos %d", ctx->pos);
 				  while (ctx->pos < ctx->len) {
-					  this_char = json_next_char(ctx);
+					  json_next_char(ctx);
+					  this_char = json_peek_char(ctx);
 					  if (this_char == 0x0a || this_char == 0x0d) {
 						  /* FIXME: should peak at the next to see if windows line ending, etc. */
 						  break;
@@ -165,22 +189,29 @@ json_eat_whitespace(json_context *ctx, UV flags) {
 				  }
 			  }
 			  else if (this_char == '*') {
-				  this_char = json_next_char(ctx);
+				  json_next_char(ctx);
+				  this_char = json_peek_char(ctx);
+				  JSON_DEBUG("in comment at pos %d, looking at %04x", ctx->pos, this_char);
+
 				  while (ctx->pos < ctx->len) {
 					  if (this_char == '*') {
-						  this_char = json_next_char(ctx);
+						  json_next_char(ctx);
+						  this_char = json_peek_char(ctx);
 						  if (this_char == '/') {
 							  /* end of comment */
+							  json_next_char(ctx);
 							  break;
 						  }
 					  }
 					  else {
-						  this_char = json_next_char(ctx);
+						  json_next_char(ctx);
+						  this_char = json_peek_char(ctx);
 					  }
 				  }
 			  }
 			  else {
 				  /* syntax error -- can't have a '/' by itself */
+				  JSON_DEBUG("syntax error at %d -- can't have '/' by itself", ctx->pos);
 			  }
 			  break;
 
@@ -249,7 +280,7 @@ json_parse_number(json_context *ctx, SV * tmp_str) {
 
 	if (looking_at < '0' || looking_at > '9') {
 		JSON_DEBUG("syntax error at byte %d", ctx->pos);
-		ctx->error = newSVpvf("syntax error at byte %d", ctx->pos);
+		ctx->error = JSON_ERROR("syntax error at byte %d", ctx->pos);
 		return (SV *)&PL_sv_undef;
 	}
 
@@ -328,7 +359,7 @@ json_parse_word(json_context *ctx, SV * tmp_str, int is_identifier) {
 			if (ctx->pos == start_pos) {
 				/* syntax error */
 				JSON_DEBUG("syntax error at byte %d, looking_at = %04x", ctx->pos, looking_at);
-				ctx->error = newSVpvf("syntax error at byte %d", ctx->pos);
+				ctx->error = JSON_ERROR("syntax error at byte %d", ctx->pos);
 				return (SV *)&PL_sv_undef;
 			}
 			else {
@@ -354,7 +385,7 @@ json_parse_word(json_context *ctx, SV * tmp_str, int is_identifier) {
 	}
 
 	JSON_DEBUG("syntax error at byte %d", ctx->pos);
-	ctx->error = newSVpvf("syntax error at byte %d", ctx->pos);
+	ctx->error = JSON_ERROR("syntax error at byte %d", ctx->pos);
 	return (SV *)&PL_sv_undef;
 }
 
@@ -508,7 +539,7 @@ json_parse_string(json_context *ctx, SV * tmp_str) {
 							unicode_digits[i] = this_uv;
 						}
 						else {
-							ctx->error = newSVpvf("bad unicode character specification at byte %d",
+							ctx->error = JSON_ERROR("bad unicode character specification at byte %d",
 								ctx->pos - 1);
 							if (rv && !tmp_str) {
 								SvREFCNT_dec(rv);
@@ -519,7 +550,7 @@ json_parse_string(json_context *ctx, SV * tmp_str) {
 					}
 
 					if (i != 4) {
-						ctx->error = newSVpvf("bad unicode character specification at byte %d",
+						ctx->error = JSON_ERROR("bad unicode character specification at byte %d",
 							ctx->pos - 1);
 						if (rv && !tmp_str) {
 							SvREFCNT_dec(rv);
@@ -557,7 +588,7 @@ json_parse_string(json_context *ctx, SV * tmp_str) {
 		}
 	}
 	
-	ctx->error = newSVpvf("unterminated string starting at byte %d", orig_start_pos);
+	ctx->error = JSON_ERROR("unterminated string starting at byte %d", orig_start_pos);
 	return (SV *)&PL_sv_undef;
 }
 
@@ -586,6 +617,7 @@ json_parse_object(json_context *ctx) {
 
 	JSON_DEBUG("json_parse_object: looking at %04x", looking_at);
 	if (looking_at == '}') {
+		json_next_char(ctx);
 		return (SV *)newRV_noinc((SV *)hash);
 	}
 
@@ -615,7 +647,7 @@ json_parse_object(json_context *ctx) {
 		JSON_DEBUG("looking at %04x at %d", looking_at, ctx->pos);
 		if (looking_at != ':') {
 			JSON_DEBUG("bad object at %d", ctx->pos);
-			ctx->error = newSVpvf("bad object at byte %d", ctx->pos);
+			ctx->error = JSON_ERROR("bad object at byte %d", ctx->pos);
 			return (SV *)&PL_sv_undef;
 		}
 		json_next_char(ctx);
@@ -653,7 +685,7 @@ json_parse_object(json_context *ctx) {
 		default:
 			if (!found_comma) {
 				JSON_DEBUG("bad object at %d (%c)", ctx->pos, looking_at);
-				ctx->error = newSVpvf("bad object at byte %d (%04x)", ctx->pos, looking_at);
+				ctx->error = JSON_ERROR("bad object at byte %d (%04x)", ctx->pos, looking_at);
 				return (SV *)&PL_sv_undef;
 			}
 			break;
@@ -661,7 +693,7 @@ json_parse_object(json_context *ctx) {
 	}
 
 	JSON_DEBUG("bad object at %d", ctx->pos);
-	ctx->error = newSVpvf("bad object at byte %d", ctx->pos);
+	ctx->error = JSON_ERROR("bad object at byte %d", ctx->pos);
 	return (SV *)&PL_sv_undef;
 }
 
@@ -676,14 +708,16 @@ json_parse_array(json_context *ctx) {
 	if (looking_at != '[') {
 		return (SV *)&PL_sv_undef;
 	}
+
+	json_next_byte(ctx);
+
 	json_eat_whitespace(ctx, 0);
 
 	array = newAV();
-
-	json_next_byte(ctx);
 	
 	looking_at = json_peek_byte(ctx);
 	if (looking_at == ']') {
+		json_next_byte(ctx);
 		return (SV *)newRV_noinc((SV *)array);
 	}
 
@@ -719,7 +753,7 @@ json_parse_array(json_context *ctx) {
 		  default:
 			  if (!found_comma) {
 				  JSON_DEBUG("bad array at %d", ctx->pos);
-				  ctx->error = newSVpvf("bad array at byte %d", ctx->pos);
+				  ctx->error = JSON_ERROR("bad array at byte %d", ctx->pos);
 				  return (SV *)&PL_sv_undef;
 			  }
 			  break;
@@ -727,7 +761,7 @@ json_parse_array(json_context *ctx) {
 	}
 
 	JSON_DEBUG("bad array at %d", ctx->pos);
-	ctx->error = newSVpvf("bad array at byte %d", ctx->pos);
+	ctx->error = JSON_ERROR("bad array at byte %d", ctx->pos);
 	return (SV *)&PL_sv_undef;
 }
 
@@ -743,7 +777,7 @@ json_parse_value(json_context *ctx, int is_identifier) {
 	JSON_DEBUG("after eat_whitespace");
 	
 	if (ctx->pos >= ctx->len || !ctx->data) {
-		ctx->error = newSVpvf("bad object at byte %d", ctx->pos);
+		ctx->error = JSON_ERROR("bad object at byte %d", ctx->pos);
 		return (SV *)&PL_sv_undef;
 	}
 
