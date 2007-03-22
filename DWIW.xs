@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 #define JSON_DO_DEBUG 0
-#define JSON_DO_EXTENDED_ERRORS 1
+#define JSON_DO_EXTENDED_ERRORS 0
 
 #if JSON_DO_DEBUG
 #define JSON_DEBUG(...) printf("%s (%d) - ", __FILE__, __LINE__); printf(__VA_ARGS__); printf("\n"); fflush(stdout)
@@ -35,6 +35,7 @@ extern "C" {
 
 #define kCommasAreWhitespace 1
 
+#if JSON_DO_EXTENDED_ERRORS
 static SV *
 _build_error_str(const char *file, STRLEN line_num, SV *error_str) {
 	SV * where_str = newSVpvf(" (%s line %d)", file, line_num);
@@ -43,8 +44,6 @@ _build_error_str(const char *file, STRLEN line_num, SV *error_str) {
 	
 	return error_str;
 }
-
-#if JSON_DO_EXTENDED_ERRORS
 #define JSON_ERROR(...) _build_error_str(__FILE__, __LINE__, newSVpvf(__VA_ARGS__))
 #else
 #define JSON_ERROR(...) newSVpvf(__VA_ARGS__)
@@ -59,8 +58,12 @@ typedef struct {
     SV * self;
 } json_context;
 
+typedef struct {
+	int bare_keys;
+} self_context;
+
 static SV * json_parse_value(json_context *ctx, int is_identifier);
-static SV * fast_to_json(SV * self, SV * data_ref);
+static SV * fast_to_json(self_context * self, SV * data_ref);
 
 static char
 json_next_byte(json_context *ctx) {
@@ -878,7 +881,7 @@ get_unicode_char_count(SV * self, U8 *c_str, STRLEN len) {
 }
 
 static SV *
-fast_escape_json_str(SV * self, SV * sv_str) {
+fast_escape_json_str(self_context * self, SV * sv_str) {
 	U8 * data_str;
 	STRLEN data_str_len;
 	STRLEN needed_len = 0;
@@ -905,7 +908,7 @@ fast_escape_json_str(SV * self, SV * sv_str) {
 	}
 
 	if (data_str_len == 0) {
-		return newSVpv("", 0);
+		return newSVpv("\"\"", 2);
 	}
 
 	needed_len = data_str_len * 2 + 2;
@@ -992,7 +995,7 @@ fast_escape_json_str(SV * self, SV * sv_str) {
 }
 
 static SV *
-encode_array(SV * self, AV * array) {
+encode_array(self_context * self, AV * array) {
 	SV * rsv = newSVpv("[", 1);
 	SV * tmp_sv = NULL;
 	I32 max_i = av_len(array); /* max index, not length */
@@ -1022,31 +1025,85 @@ encode_array(SV * self, AV * array) {
 	return rsv;
 }
 
+static void
+setup_self_context(SV *self_sv, self_context *self) {
+	SV **ptr = NULL;
+	SV * self_hash = NULL;
+
+	memzero((void *)self, sizeof(self_context));
+
+	if (! SvROK(self_sv)) {
+		/* hmmm, this should always be a reference */
+		return;
+	}
+	
+	self_hash = SvRV(self_sv);
+	ptr = hv_fetch((HV *)self_hash, "bare_keys", 9, 0);
+	if (ptr) {
+		if (SvTRUE(*ptr)) {
+			self->bare_keys = 1;
+		}
+	}
+}
+
+static int
+hash_key_can_be_bare(self_context * self, U8 *key, STRLEN key_len) {
+	U8 this_byte;
+	STRLEN i;
+
+	if (! self->bare_keys) {
+		return 0;
+	}
+
+	/* Only allow if 7-bit ascii, so use byte semantics, and only
+	   allow if alphanumeric and '_'.
+	*/
+	for (i = 0; i < key_len; i++) {
+		this_byte = *key;
+		key++;
+		if (! ( this_byte == '_'
+				|| (this_byte >= 'A' && this_byte <= 'Z')
+				|| (this_byte >= 'a' && this_byte <= 'z')
+				|| (this_byte >= '0' && this_byte <= '9')
+				)) {
+			return 0;
+		}
+	}
+
+	return 1;
+}
+
 static SV *
-encode_hash(SV * self, HV * hash) {
+encode_hash(self_context * self, HV * hash) {
 	SV * rsv = newSVpv("{", 1);
 	SV * tmp_sv = NULL;
 	SV * tmp_sv2 = NULL;
-	char * key;
+	U8 * key;
 	I32 key_len;
 	SV * val;
 	int first = 1;
 	
 	/* non-sorted keys */
 	hv_iterinit(hash);
-	while (val = hv_iternextsv(hash, &key, &key_len)) {
+	while (val = hv_iternextsv(hash, (char **)&key, &key_len)) {
 		if (!first) {
 			sv_catpvn(rsv, ",", 1);
 		}
 
 		first = 0;
 
-		tmp_sv = newSVpv(key, key_len);
-		tmp_sv2 = fast_escape_json_str(self, tmp_sv);
+		if (hash_key_can_be_bare(self, key, key_len)) {
+			sv_catpvn(rsv, (char *)key, key_len);
+		}
+		else {
+			tmp_sv = newSVpv((char *)key, key_len);
+
+			tmp_sv2 = fast_escape_json_str(self, tmp_sv);
 		
-		sv_catsv(rsv, tmp_sv2);
-		SvREFCNT_dec(tmp_sv);
-		SvREFCNT_dec(tmp_sv2);
+			sv_catsv(rsv, tmp_sv2);
+			SvREFCNT_dec(tmp_sv);
+			SvREFCNT_dec(tmp_sv2);
+		}
 
 		sv_catpvn(rsv, ":", 1);
 
@@ -1061,7 +1118,7 @@ encode_hash(SV * self, HV * hash) {
 }
 
 static SV *
-fast_to_json(SV * self, SV * data_ref) {
+fast_to_json(self_context * self, SV * data_ref) {
 	SV * data;
 	int type;
 	SV * rsv = newSVpv("", 0);
@@ -1225,22 +1282,6 @@ MODULE = JSON::DWIW  PACKAGE = JSON::DWIW
 PROTOTYPES: DISABLE
 
 SV *
-_escape_json_str(self, sv_str)
- SV * self
- SV * sv_str
- 
-    PREINIT:
-    SV * rv;
-
-    CODE:
-    rv = fast_escape_json_str(self, sv_str);
-    RETVAL = rv;
-
-    OUTPUT:
-    RETVAL
-
-
-SV *
 _xs_from_json(self, data, error_msg_ref)
  SV * self
  SV * data
@@ -1270,8 +1311,12 @@ _xs_to_json(self, data)
  SV * self
  SV * data
 
+	 PREINIT:
+     self_context self_context;
+
 	 CODE:
-     RETVAL = fast_to_json(self, data);
+     setup_self_context(self, &self_context);
+     RETVAL = fast_to_json(&self_context, data);
 
      OUTPUT:
      RETVAL

@@ -96,7 +96,7 @@ require DynaLoader;
 package JSON::DWIW;
 @EXPORT = qw( );
 
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 
 package JSON::DWIW;
 bootstrap JSON::DWIW $VERSION;
@@ -107,11 +107,44 @@ package JSON::DWIW;
 
 =head1 METHODS
 
+=head2 new(\%options)
+
+ Create a new JSON::DWIW object.
+
+ %options is an optional hash of parameters that will change the
+ bahavior of this module when encoding to JSON.  The following
+ options are supported:
+
+=over 4
+
+=item bare_keys
+
+ If set to a true value, keys in hashes will not be quoted when
+ converted to JSON if they look like identifiers.  This is valid
+ Javascript in current browsers, but not in JSON.
+
+=back
+
 =cut
 
 sub new {
     my $proto = shift;
+
     my $self = bless {}, ref($proto) || $proto;
+    my $params = shift;
+    
+    return $self unless $params;
+
+    unless (defined($params) and UNIVERSAL::isa($params, 'HASH')) {
+        return $self;
+    }
+
+    foreach my $field (qw/bare_keys/) {
+        if ($params->{$field}) {
+            $self->{$field} = 1;
+        }
+    }
+
     return $self;
 }
 
@@ -127,9 +160,25 @@ sub new {
 =cut
 sub to_json {
     my $proto = shift;
-    my $data = shift;
+    my $data;
     
-    my $self = ref($proto) ? $proto : $proto->new(@_);
+    my $self;
+    if (UNIVERSAL::isa($proto, 'JSON::DWIW')) {
+        $data = shift;
+        my $options = shift;
+        if ($options) {
+            $self = $proto->new($options, @_);
+        }
+        else {
+            $self = ref($proto) ? $proto : $proto->new(@_);
+        }
+    }
+    else {
+        $data = $proto;
+        $self = JSON::DWIW->new(@_);
+    }
+
+    # my $self = ref($proto) ? $proto : $proto->new(@_);
     # return _to_json($self, $data); # call as non-OO for speed, but pass $self
     return _xs_to_json($self, $data); # call as non-OO for speed, but pass $self
 }
@@ -159,9 +208,19 @@ sub to_json {
 =cut
 sub from_json {
     my $proto = shift;
-    my $json = shift;
+    my $json;
+    my $self;
 
-    my $self = ref($proto) ? $proto : $proto->new(@_);
+    if (UNIVERSAL::isa($proto, 'JSON::DWIW')) {    
+        $json = shift;
+        $self = ref($proto) ? $proto : $proto->new(@_);
+    }
+    else {
+        $json = $proto;
+        $self = JSON::DWIW->new;
+    }
+
+    # my $self = ref($proto) ? $proto : $proto->new(@_);
 
     my $error_msg;
     my $data = _xs_from_json($self, $json, \$error_msg);
@@ -250,7 +309,7 @@ PURPOSE.
 
 =head1 VERSION
 
- 0.03
+ 0.04
 
 =cut
 

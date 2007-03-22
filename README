@@ -53,6 +53,18 @@ DESCRIPTION
          becomes a 4 element array containing 1, 2, 3, and 4.
 
 METHODS
+  new(\%options)
+     Create a new JSON::DWIW object.
+
+     %options is an optional hash of parameters that will change the
+     bahavior of this module when encoding to JSON.  The following
+     options are supported:
+
+    bare_keys
+         If set to a true value, keys in hashes will not be quoted when
+         converted to JSON if they look like identifiers.  This is valid
+         Javascript in current browsers, but not in JSON.
+
   my $json_str = to_json($data)
      Returns the JSON representation of $data (arbitrary
      datastructure).  See http://www.json.org/ for details.
@@ -129,5 +141,5 @@ SEE ALSO
      JSON::Syck (included in YAML::Syck)
 
 VERSION
-     0.03
+     0.04
 

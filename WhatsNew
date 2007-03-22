@@ -1,3 +1,6 @@
+Version 0.04
+    * Fixed bug where empty strings got encoded incorrectly
+
 Version 0.03
     * Fixed bug where parsing an empty array would sometimes cause an error
 

@@ -9,11 +9,11 @@ use Test;
 
 # main
 {
-    BEGIN { plan tests => 9 }
+    BEGIN { plan tests => 20 }
 
     use JSON::DWIW;
 
-    # bare keys
+    # bare keys (called as class method)
     my $json_str = '{var1:true,var2:false,var3:null}';
     my $data = JSON::DWIW->from_json($json_str);
     
@@ -22,6 +22,22 @@ use Test;
     ok(ref($data) eq 'HASH' and not $data->{var2});
     ok(ref($data) eq 'HASH' and exists($data->{var3}) and not defined($data->{var3}));
 
+    # call as subroutine (possible imported)
+    $json_str = '{var1:true,var2:false,var3:null}';
+    $data = JSON::DWIW::from_json($json_str);
+    ok(ref($data) eq 'HASH');
+    ok(ref($data) eq 'HASH' and $data->{var1});
+    ok(ref($data) eq 'HASH' and not $data->{var2});
+    ok(ref($data) eq 'HASH' and exists($data->{var3}) and not defined($data->{var3}));
+
+    # call as instance method
+    my $json_obj = JSON::DWIW->new;
+    $json_str = '{var1:true,var2:false,var3:null}';
+    $data = $json_obj->from_json($json_str);
+    ok(ref($data) eq 'HASH');
+    ok(ref($data) eq 'HASH' and $data->{var1});
+    ok(ref($data) eq 'HASH' and not $data->{var2});
+    ok(ref($data) eq 'HASH' and exists($data->{var3}) and not defined($data->{var3}));
 
     # extra commas
     $json_str = '{,"var1":true,,"var2":false,"var3":null,, ,}';
@@ -38,6 +54,17 @@ use Test;
     ok(ref($data) eq 'HASH' and scalar(keys(%$data)) == 1
        and ref($data->{test_empty_hash}) eq 'HASH'
        and scalar(keys %{$data->{test_empty_hash}}) == 0);
+
+    # encoding bare keys
+    $json_obj = JSON::DWIW->new({ bare_keys => 1 });
+    $data = { var1 => "val2" };
+    $json_str = $json_obj->to_json($data);
+    ok($json_str eq '{var1:"val2"}');
+    $json_str = JSON::DWIW->to_json($data, { bare_keys => 1 });
+    ok($json_str eq '{var1:"val2"}');
+    $json_str = JSON::DWIW::to_json($data, { bare_keys => 1 });
+    ok($json_str eq '{var1:"val2"}');
+                                   
 }
 
 exit 0;

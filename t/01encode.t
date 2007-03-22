@@ -8,7 +8,7 @@ use Test;
 
 # main
 {
-    BEGIN { plan tests => 5 }
+    BEGIN { plan tests => 11 }
 
     use JSON::DWIW;
 
@@ -58,6 +58,32 @@ use Test;
 
     ok($json_str eq $expected_str1 or $json_str eq $expected_str2
        or $json_str eq $expected_str3 or $json_str eq $expected_str4);
+
+    $data = '';
+    $json_str = $json_obj->to_json($data);
+    ok($json_str eq '""');
+
+    $data = { str => '' };
+    $json_str = $json_obj->to_json($data);
+    ok($json_str eq '{"str":""}');
+
+    $data = [ "1", "" ];
+    $json_str = $json_obj->to_json($data);
+    ok($json_str eq '["1",""]');
+
+    $data = undef;
+    $json_str = $json_obj->to_json($data);
+    ok($json_str eq 'null');
+
+    $data = [undef];
+    $json_str = $json_obj->to_json($data);
+    ok($json_str eq '[null]');
+
+    $data = { var => undef };
+    $json_str = $json_obj->to_json($data);
+    ok($json_str eq '{"var":null}');
+
+
 }
 
 exit 0;
