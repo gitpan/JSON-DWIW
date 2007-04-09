@@ -19,13 +19,20 @@
 
 =head1 SYNOPSIS
 
+ use JSON::DWIW;
  my $json_obj = JSON::DWIW->new;
  my $data = $json_obj->from_json($json_str);
  my $str = $json_obj->to_json($data);
 
  my $data = JSON::DWIW->from_json($json_str);
  my $str = JSON:DWIW->to_json($data);
+
+ my $data = JSON::DWIW->from_json($json_str, \%options);
+ my $str = JSON::DWIW->to_json($data, \%options);
  
+ use JSON::DWIW qw(:all);
+ my $data = from_json($json_str);
+ my $str = to_json($data);
 
 =head1 DESCRIPTION
 
@@ -42,11 +49,13 @@ be flexible, without having to set any options.
 
 =head2 Encoding
 
-Perl objects get encoded as their underlying data structure.  For
-example, a blessed hash ref will be represented as an object in
-JSON, a blessed array will be represented as an array. etc.  A
-reference to a scalar is dereferenced and represented as the
-scalar itself.  Globs, filehandles, etc., get stringified.
+Perl objects get encoded as their underlying data structure, with
+the exception of Math::BigInt and Math::BigFloat, which will be
+output as numbers.  For example, a blessed hash ref will be
+represented as an object in JSON, a blessed array will be
+represented as an array. etc.  A reference to a scalar is
+dereferenced and represented as the scalar itself.  Globs,
+filehandles, etc., get stringified.
 
 =head2 Decoding
 
@@ -88,15 +97,46 @@ use warnings;
 
 package JSON::DWIW;
 
-use vars qw(@ISA @EXPORT);
+use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 
 require Exporter;
 require DynaLoader;
-@ISA = qw(Exporter DynaLoader);
+# @ISA = qw(Exporter DynaLoader);
+@ISA = qw(DynaLoader);
 package JSON::DWIW;
-@EXPORT = qw( );
+@EXPORT = ( );
+@EXPORT_OK = ();
+%EXPORT_TAGS = (all => [ 'to_json', 'from_json' ]);
 
-our $VERSION = '0.04';
+Exporter::export_ok_tags('all');
+
+our $VERSION = '0.05';
+
+{
+    package JSON::DWIW::Exporter;
+    use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
+    @ISA = qw(Exporter);
+
+    *EXPORT = \@JSON::DWIW::EXPORT;
+    *EXPORT_OK = \@JSON::DWIW::EXPORT_OK;
+    *EXPORT_TAGS = \%JSON::DWIW::EXPORT_TAGS;
+
+    sub import {
+        JSON::DWIW::Exporter->export_to_level(2, @_);
+    }
+
+    sub to_json {
+        return JSON::DWIW->to_json(@_);
+    }
+
+    sub from_json {
+        return JSON::DWIW->from_json(@_);
+    }
+}
+
+sub import {
+    JSON::DWIW::Exporter::import(@_);
+}
 
 package JSON::DWIW;
 bootstrap JSON::DWIW $VERSION;
@@ -112,18 +152,46 @@ package JSON::DWIW;
  Create a new JSON::DWIW object.
 
  %options is an optional hash of parameters that will change the
- bahavior of this module when encoding to JSON.  The following
- options are supported:
+ bahavior of this module when encoding to JSON.  You may also
+ pass these options as the second argument to to_json() and
+ from_json().  The following options are supported:
 
-=over 4
-
-=item bare_keys
+=head3 bare_keys
 
  If set to a true value, keys in hashes will not be quoted when
  converted to JSON if they look like identifiers.  This is valid
  Javascript in current browsers, but not in JSON.
 
-=back
+=head3 use_exceptions
+
+ If set to a true value, errors found when converting to or from
+ JSON will result in die() being called with the error message.
+ The default is to not use exceptions.
+
+=head3 bad_char_policy
+
+ This options indicates what should be done if bad characters are
+ found, e.g., bad utf-8 sequence.  The default is to return an
+ error and drop all the output.
+
+ The following values for bad_char_policy are supported:
+
+=head4 error
+
+ default action, i.e., drop any output built up and return an error
+
+=head4 convert
+
+ convert to a utf-8 char using the value of the byte as a code point
+
+=head4 pass_through
+
+ Ignore the error and pass through the raw bytes (invalid JSON)
+
+=head3 pretty
+
+ Add white space to the output when calling to_json() to make the
+ output easier for humans to read.
 
 =cut
 
@@ -139,7 +207,7 @@ sub new {
         return $self;
     }
 
-    foreach my $field (qw/bare_keys/) {
+    foreach my $field (qw/bare_keys use_exceptions bad_char_policy dump_vars pretty/) {
         if ($params->{$field}) {
             $self->{$field} = 1;
         }
@@ -150,10 +218,23 @@ sub new {
 
 =pod
 
-=head2 my $json_str = to_json($data)
+=head2 to_json($data)
 
  Returns the JSON representation of $data (arbitrary
  datastructure).  See http://www.json.org/ for details.
+
+ Called in list context, this method returns a list whose first
+ element is the encoded JSON string and the second element is an
+ error message, if any.  If $error_msg is defined, there was a
+ problem converting to JSON.  You may also pass a second argument
+ to to_json() that is a reference to a hash of options -- see
+ new().
+
+     my $json_str = JSON::DWIW->to_json($data);
+
+     my ($json_str, $error_msg) = JSON::DWIW->to_json($data);
+
+     my $json_str = JSON::DWIW->to_json($data, { use_exceptions => 1 });
 
  Aliases: toJson, toJSON, objToJson
 
@@ -167,6 +248,12 @@ sub to_json {
         $data = shift;
         my $options = shift;
         if ($options) {
+            if (ref($proto) and $proto->isa('HASH')) {
+                if (UNIVERSAL::isa($options, 'HASH')) {
+                    $options = { %$proto, %$options };
+                }
+            }
+
             $self = $proto->new($options, @_);
         }
         else {
@@ -178,9 +265,12 @@ sub to_json {
         $self = JSON::DWIW->new(@_);
     }
 
-    # my $self = ref($proto) ? $proto : $proto->new(@_);
-    # return _to_json($self, $data); # call as non-OO for speed, but pass $self
-    return _xs_to_json($self, $data); # call as non-OO for speed, but pass $self
+    my $error_msg;
+    my $str = _xs_to_json($self, $data, \$error_msg); # call as non-OO for speed, but pass $self
+    if (defined($error_msg) and $self->{use_exceptions}) {
+        die $error_msg;
+    }
+    return wantarray ? ($str, $error_msg) : $str;
 }
 {
     no warnings 'once';
@@ -198,10 +288,19 @@ sub to_json {
  value for true becomes 1, false becomes 0, and null gets
  converted to undef.
 
- Called in list context, this method returns a where the first
+ Called in list context, this method returns a list whose first
  element is the data and the second element is the error message,
  if any.  If $error_msg is defined, there was a problem parsing
- the JSON string, and $data will be undef.
+ the JSON string, and $data will be undef.  You may also pass a
+ second argument to from_json() that is a reference to a hash of
+ options -- see new().
+
+     my $data = from_json($json_str)
+
+     my ($data, $error_msg) = from_json($json_str)
+
+     my $data = from_json($json_str, { use_exceptions => 1 })
+
 
  Aliases: fromJson, fromJSON, jsonToObj
 
@@ -211,20 +310,33 @@ sub from_json {
     my $json;
     my $self;
 
-    if (UNIVERSAL::isa($proto, 'JSON::DWIW')) {    
+    if (UNIVERSAL::isa($proto, 'JSON::DWIW')) {
         $json = shift;
-        $self = ref($proto) ? $proto : $proto->new(@_);
+        my $options = shift;
+        if ($options) {
+            if (ref($proto) and $proto->isa('HASH')) {
+                if (UNIVERSAL::isa($options, 'HASH')) {
+                    $options = { %$proto, %$options };
+                }
+            }
+
+            $self = $proto->new($options, @_);
+        }
+        else {
+            $self = ref($proto) ? $proto : $proto->new(@_);
+        }
     }
     else {
         $json = $proto;
-        $self = JSON::DWIW->new;
+        $self = JSON::DWIW->new(@_);
     }
-
-    # my $self = ref($proto) ? $proto : $proto->new(@_);
 
     my $error_msg;
     my $data = _xs_from_json($self, $json, \$error_msg);
-    # return $data;
+    if (defined($error_msg) and $self->{use_exceptions}) {
+        die $error_msg;
+    }
+
     return wantarray ? ($data, $error_msg) : $data;
 }
 
@@ -248,43 +360,52 @@ sub from_json {
     Encode (50000 iterations):
     ==========================
                   Rate       JSON JSON::Syck JSON::DWIW
-    JSON        2670/s         --       -72%       -89%
-    JSON::Syck  9416/s       253%         --       -61%
-    JSON::DWIW 24155/s       805%       157%         --
+    JSON        2648/s         --       -72%       -86%
+    JSON::Syck  9416/s       256%         --       -51%
+    JSON::DWIW 19380/s       632%       106%         --
 
 
     Decode (50000 iterations):
     ==========================
                   Rate       JSON JSON::Syck JSON::DWIW
-    JSON        2300/s         --       -81%       -93%
-    JSON::Syck 12195/s       430%         --       -64%
-    JSON::DWIW 33784/s      1369%       177%         --
-
+    JSON        2288/s         --       -81%       -93%
+    JSON::Syck 12195/s       433%         --       -60%
+    JSON::DWIW 30675/s      1240%       152%         --
 
 
  Using a larger data set (8KB JSON string) generated from Yahoo!
  Local's search API (http://nanoref.com/yahooapis/mgPdGg)
 
+
     Encode (1000 iterations):
     =========================
                 Rate       JSON JSON::Syck JSON::DWIW
-    JSON       135/s         --       -54%       -74%
-    JSON::Syck 290/s       115%         --       -45%
-    JSON::DWIW 526/s       291%        82%         --
+    JSON       133/s         --       -54%       -66%
+    JSON::Syck 289/s       118%         --       -26%
+    JSON::DWIW 389/s       193%        35%         --
 
 
     Decode (1000 iterations):
     =========================
                  Rate       JSON JSON::Syck JSON::DWIW
-    JSON       35.9/s         --       -92%       -94%
-    JSON::Syck  444/s      1137%         --       -25%
-    JSON::DWIW  595/s      1557%        34%         --
-
+    JSON       35.5/s         --       -92%       -94%
+    JSON::Syck  427/s      1103%         --       -25%
+    JSON::DWIW  571/s      1508%        34%         --
 
 
 =head1 DEPENDENCIES
 
 Perl 5.6 or later
+
+=head1 BUGS/LIMITATIONS
+
+If you find a bug, please file a tracker request at
+<http://rt.cpan.org/Public/Dist/Display.html?Name=JSON-DWIW>.
+
+When decoding a JSON string, it is a assumed to be utf-8 encoded.
+The module should detect whether the input is utf-8, utf-16, or
+utf-32.
+
 
 =head1 AUTHOR
 
@@ -309,7 +430,7 @@ PURPOSE.
 
 =head1 VERSION
 
- 0.04
+ 0.05
 
 =cut
 
