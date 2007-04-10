@@ -37,11 +37,11 @@ use Test;
     ok($str eq '{"magic_hash":{"var1":"val1"}}');
 
     $str = JSON::DWIW->to_json(\@magic_array);
-    ok($str eq '[1,2,3,4]');
+    ok($str eq '[1,2,3,4]' or $str eq '["1","2","3","4"]');
     
     $data = { magic_array => \@magic_array };
     $str = JSON::DWIW->to_json($data);
-    ok($str eq '{"magic_array":[1,2,3,4]}');
+    ok($str eq '{"magic_array":[1,2,3,4]}' or $str eq '{"magic_array":["1","2","3","4"]}');
     
 }
 

@@ -39,6 +39,10 @@ extern "C" {
 
 #define debug_level 9
 
+#ifndef PERL_MAGIC_tied
+#define PERL_MAGIC_tied            'P' /* Tied array or hash */
+#endif
+
 #ifdef __GNUC__
 #if JSON_DO_DEBUG
 #define JSON_DEBUG(...) printf("%s (%d) - ", __FILE__, __LINE__); printf(__VA_ARGS__); printf("\n"); fflush(stdout)
@@ -788,8 +792,8 @@ json_parse_string(json_context *ctx, SV * tmp_str) {
     UV this_uv = 0;
     UV next_uv = 0;
     U8 unicode_digits[5];
-    STRLEN grok_len = 0;
-    I32 grok_flags = 0;
+    /* STRLEN grok_len = 0; */
+    /* I32 grok_flags = 0; */
     STRLEN orig_start_pos;
     SV * rv = NULL;
     char * char_buf;
@@ -916,9 +920,12 @@ json_parse_string(json_context *ctx, SV * tmp_str) {
 
                     next_uv = json_peek_char(ctx);
 
-                    /* sscanf((char *)unicode_digits, "%04x", &this_uv); */
-                    grok_len = 4;
-                    this_uv = grok_hex((char *)unicode_digits, &grok_len, &grok_flags, NULL);
+                    /* grok_hex() not available in perl 5.6 */
+                    /* grok_len = 4;*/
+                    /* this_uv = grok_hex((char *)unicode_digits, &grok_len, &grok_flags, NULL); */
+                    
+                    sscanf((char *)unicode_digits, "%04x", &this_uv);
+
                     tmp_buf = convert_uv_to_utf8(unicode_digits, this_uv);
                     if (!SvUTF8(rv)) {
                         SvUTF8_on(rv);
@@ -1774,6 +1781,9 @@ fast_to_json(self_context * self, SV * data_ref, int indent_level) {
     SV * rsv = newSVpv("", 0);
     SV * tmp = NULL;
     STRLEN before_len = 0;
+    U8 * data_str = NULL;
+    STRLEN start = 0;
+    STRLEN len = 0;
 
     JSON_DEBUG("fast_to_json() called");
 
@@ -1847,7 +1857,31 @@ fast_to_json(self_context * self, SV * data_ref, int indent_level) {
         if (sv_derived_from(data_ref, "Math::BigInt")
             || sv_derived_from(data_ref, "Math::BigFloat")) {
             JSON_DEBUG("found big number");
-            sv_catsv(rsv, data_ref);
+            tmp = newSVpv("", 0);
+            sv_catsv(tmp, data_ref);
+            data_str = (U8 *)SvPV(tmp, before_len);
+
+            if (before_len > 0) {
+                start = 0;
+                len = before_len;
+                if (data_str[0] == '+') {
+                    start++;
+                    len--;
+                }
+
+                if (data_str[before_len - 1] == '.') {
+                    len--;
+                }
+
+                sv_catpvn(rsv, (char *)data_str + start, len);
+
+            }
+            else {
+                sv_setpvn(rsv, "\"\"", 2);
+            }
+
+            SvREFCNT_dec(tmp);
+
             return rsv;
         }
     }
