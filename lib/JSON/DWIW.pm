@@ -60,7 +60,10 @@ filehandles, etc., get stringified.
 =head2 Decoding
 
 When decoding, null, true, and false become undef, 1, and 0,
-repectively.
+repectively.  Numbers that appear to be too long to be supported
+natively are converted to Math::BigInt or Math::BigFloat objects,
+if you have them installed.  Otherwise, long numbers are turned
+into strings to prevent data loss.
 
 The parser is flexible in what it accepts and handles some
 things not in the JSON spec:
@@ -110,7 +113,7 @@ package JSON::DWIW;
 
 Exporter::export_ok_tags('all');
 
-our $VERSION = '0.06';
+our $VERSION = '0.07';
 
 {
     package JSON::DWIW::Exporter;
@@ -142,6 +145,16 @@ package JSON::DWIW;
 bootstrap JSON::DWIW $VERSION;
 
 package JSON::DWIW;
+
+{
+    # workaround for weird importing bug on some installations
+    local($SIG{__DIE__}); 
+    eval qq{ 
+        use Math::BigInt; 
+        use Math::BigFloat;
+    };
+} 
+
 
 =pod
 
@@ -406,10 +419,15 @@ When decoding a JSON string, it is a assumed to be utf-8 encoded.
 The module should detect whether the input is utf-8, utf-16, or
 utf-32.
 
-
 =head1 AUTHOR
 
 Don Owens <don@regexguy.com>
+
+=head2 CONTRIBUTORS
+
+Thanks to Asher Blum for help with testing.
+
+Thanks to Nigel Bowden for helping with compilation on Windows.
 
 =head1 LICENSE AND COPYRIGHT
 
@@ -430,7 +448,7 @@ PURPOSE.
 
 =head1 VERSION
 
- 0.06
+0.07
 
 =cut
 

@@ -39,7 +39,10 @@ DESCRIPTION
 
   Decoding
     When decoding, null, true, and false become undef, 1, and 0,
-    repectively.
+    repectively. Numbers that appear to be too long to be supported natively
+    are converted to Math::BigInt or Math::BigFloat objects, if you have
+    them installed. Otherwise, long numbers are turned into strings to
+    prevent data loss.
 
     The parser is flexible in what it accepts and handles some things not in
     the JSON spec:
@@ -189,6 +192,11 @@ BUGS/LIMITATIONS
 AUTHOR
     Don Owens <don@regexguy.com>
 
+  CONTRIBUTORS
+    Thanks to Asher Blum for help with testing.
+
+    Thanks to Nigel Bowden for helping with compilation on Windows.
+
 LICENSE AND COPYRIGHT
     Copyright (c) 2007 Don Owens <don@regexguy.com>. All rights reserved.
 
@@ -204,5 +212,5 @@ SEE ALSO
      JSON::Syck (included in YAML::Syck)
 
 VERSION
-     0.06
+    0.07
 

@@ -1,3 +1,17 @@
+Version 0.07
+    * Fixed more problems with Math::BigInt and Math::BigFloat objects
+
+Version 0.06
+    * Fixed problems with tests using Math::BigInt and Math::BigFloat objects
+
+Version 0.05
+    * Bad utf-8 sequences now cause an error unless you pass an option
+      indicating otherwise
+    * Added options for how to react to bad utf8 data
+    * Added option to throw an exception on error
+    * Added option to pretty-print output
+    * Fixed some compilation problems on Windows
+
 Version 0.04
     * Fixed bug where empty strings got encoded incorrectly
 
