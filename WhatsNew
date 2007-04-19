@@ -1,3 +1,7 @@
+Version 0.08
+    * Fixed problem encoding scalars that have been used as both
+      strings and numbers (types SVt_PVN, SVt_PVIV)
+
 Version 0.07
     * Fixed more problems with Math::BigInt and Math::BigFloat objects
 

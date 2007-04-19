@@ -1774,6 +1774,7 @@ is_overloaded_as_string(SV * val) {
 }
 */
 
+
 static SV *
 fast_to_json(self_context * self, SV * data_ref, int indent_level) {
     SV * data;
@@ -1823,7 +1824,61 @@ fast_to_json(self_context * self, SV * data_ref, int indent_level) {
 
               case SVt_PVIV:
               case SVt_PVNV:
+                  sv_catsv(rsv, data);
+                  tmp = rsv;
+                  rsv = fast_escape_json_str(self, tmp);
+                  SvREFCNT_dec(tmp);
+                  return rsv;
+                  break;
+
+                  /*
+              case SVt_PVIV:
+                  before_len = get_sv_length(rsv);
+                  
+                  if (SvIOK(data)) {
+                      sv_catsv(rsv, data);
+                      if (get_sv_length(rsv) == before_len) {
+                          sv_catpvn(rsv, "\"\"", 2);
+                      }
+                  }
+                  else {
+                      sv_catsv(rsv, data);
+                      tmp = rsv;
+                      rsv = fast_escape_json_str(self, tmp);
+                      SvREFCNT_dec(tmp);
+                  }
+
+                  return rsv;
+                  break;
+
+              case SVt_PVNV:
+                  before_len = get_sv_length(rsv);
+                  if (SvNOK(data)) {
+                      sv_catsv(rsv, data);
+                      if (get_sv_length(rsv) == before_len) {
+                          sv_catpvn(rsv, "\"\"", 2);
+                      }
+                  }
+                  else {
+                      sv_catsv(rsv, data);
+                      tmp = rsv;
+                      rsv = fast_escape_json_str(self, tmp);
+                      SvREFCNT_dec(tmp);
+                  }
+
+                  return rsv;
+                  break;
+                  */
+
               case SVt_PVLV:
+                  sv_catsv(rsv, data);
+                  tmp = rsv;
+                  rsv = fast_escape_json_str(self, tmp);
+                  SvREFCNT_dec(tmp);
+                  return rsv;
+                  break;
+
+                  /*
                   before_len = get_sv_length(rsv);
                   sv_catsv(rsv, data);
                   if (get_sv_length(rsv) == before_len) {
@@ -1832,6 +1887,7 @@ fast_to_json(self_context * self, SV * data_ref, int indent_level) {
 
                   return rsv;
                   break;
+                  */
 
               default:
                   /* now what? */
@@ -1917,7 +1973,13 @@ fast_to_json(self_context * self, SV * data_ref, int indent_level) {
 
       case SVt_PVIV:
       case SVt_PVNV:
-      case SVt_PVLV:
+          sv_catsv(rsv, data);
+          tmp = rsv;
+          rsv = fast_escape_json_str(self, tmp);
+          SvREFCNT_dec(tmp);
+          return rsv;
+          break;
+          /*
           before_len = get_sv_length(rsv);
           sv_catsv(rsv, data);
           if (get_sv_length(rsv) == before_len) {
@@ -1925,11 +1987,17 @@ fast_to_json(self_context * self, SV * data_ref, int indent_level) {
           }
           return rsv;
           break;
+          */
 
       case SVt_RV:
         /* reference to a reference */
         /* FIXME: implement */
-          sv_catpvn(rsv, "\"\"", 2);
+          sv_catsv(rsv, data_ref);
+          tmp = rsv;
+          rsv = fast_escape_json_str(self, tmp);
+          SvREFCNT_dec(tmp);
+
+          /* sv_catpvn(rsv, "\"\"", 2); */
           return rsv;
         break;
 
@@ -1942,18 +2010,12 @@ fast_to_json(self_context * self, SV * data_ref, int indent_level) {
       case SVt_PVHV: /* hash */
           JSON_DEBUG("==========> found hash ref");
 
-          /*
-          magic_ptr = mg_find(data, PERL_MAGIC_overload);
-          if (magic_ptr) {
-              JSON_DEBUG("==========> found magic hash ref <==========");
-          }
-          */
           SvREFCNT_dec(rsv);
           return encode_hash(self, (HV *)data, indent_level);
           break;
 
       case SVt_PVCV: /* code */
-          sv_catsv(rsv, data);
+          sv_catsv(rsv, data_ref);
           tmp = rsv;
           rsv = fast_escape_json_str(self, tmp);
           SvREFCNT_dec(tmp);
@@ -1967,7 +2029,7 @@ fast_to_json(self_context * self, SV * data_ref, int indent_level) {
         break;
 
       case SVt_PVGV: /* glob */
-          sv_catsv(rsv, data);
+          sv_catsv(rsv, data_ref);
           tmp = rsv;
           rsv = fast_escape_json_str(self, tmp);
           SvREFCNT_dec(tmp);

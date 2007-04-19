@@ -55,7 +55,11 @@ output as numbers.  For example, a blessed hash ref will be
 represented as an object in JSON, a blessed array will be
 represented as an array. etc.  A reference to a scalar is
 dereferenced and represented as the scalar itself.  Globs,
-filehandles, etc., get stringified.
+Code refs, etc., get stringified.
+
+Scalars that have been used as both a string and a number will be
+output as a string.  A reference to a reference is currently
+output as an empty string, but this may change.
 
 =head2 Decoding
 
@@ -113,7 +117,7 @@ package JSON::DWIW;
 
 Exporter::export_ok_tags('all');
 
-our $VERSION = '0.07';
+our $VERSION = '0.08';
 
 {
     package JSON::DWIW::Exporter;
@@ -423,7 +427,7 @@ utf-32.
 
 Don Owens <don@regexguy.com>
 
-=head2 CONTRIBUTORS
+=head1 ACKNOWLEDGEMENTS
 
 Thanks to Asher Blum for help with testing.
 
@@ -448,7 +452,7 @@ PURPOSE.
 
 =head1 VERSION
 
-0.07
+0.08
 
 =cut
 
