@@ -117,7 +117,7 @@ package JSON::DWIW;
 
 Exporter::export_ok_tags('all');
 
-our $VERSION = '0.08';
+our $VERSION = '0.09';
 
 {
     package JSON::DWIW::Exporter;
@@ -199,11 +199,18 @@ package JSON::DWIW;
 
 =head4 convert
 
- convert to a utf-8 char using the value of the byte as a code point
+ Convert to a utf-8 char using the value of the byte as a code
+ point.  This is basically the same as assuming the bad character
+ is in latin-1 and converting it to utf-8.
 
 =head4 pass_through
 
  Ignore the error and pass through the raw bytes (invalid JSON)
+
+=head3 escape_multi_byte
+
+ If set to a true value, escape all multi-byte characters (e.g.,
+ \u00e9) when converting to JSON.
 
 =head3 pretty
 
@@ -224,9 +231,10 @@ sub new {
         return $self;
     }
 
-    foreach my $field (qw/bare_keys use_exceptions bad_char_policy dump_vars pretty/) {
-        if ($params->{$field}) {
-            $self->{$field} = 1;
+    foreach my $field (qw/bare_keys use_exceptions bad_char_policy dump_vars pretty
+                          escape_multi_byte/) {
+        if (exists($params->{$field})) {
+            $self->{$field} = $params->{$field};
         }
     }
 
@@ -452,7 +460,7 @@ PURPOSE.
 
 =head1 VERSION
 
-0.08
+0.09
 
 =cut
 

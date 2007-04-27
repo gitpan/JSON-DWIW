@@ -9,7 +9,7 @@ use Test;
 
 # main
 {
-    BEGIN { plan tests => 20 }
+    BEGIN { plan tests => 21 }
 
     use JSON::DWIW;
 
@@ -64,6 +64,16 @@ use Test;
     ok($json_str eq '{var1:"val2"}');
     $json_str = JSON::DWIW::to_json($data, { bare_keys => 1 });
     ok($json_str eq '{var1:"val2"}');
+
+    $data = { var => "stuff\xe9stuff" };
+    undef $json_str;
+    {
+        local $SIG{__WARN__} = sub { };
+        $json_str = JSON::DWIW->to_json($data, { bad_char_policy => 'convert',
+                                                 escape_multi_byte => 1,
+                                               });
+    }
+    ok($json_str eq '{"var":"stuff\u00e9stuff"}');
                                    
 }
 

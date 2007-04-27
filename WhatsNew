@@ -1,3 +1,6 @@
+Version 0.09
+    * Fixed the bad_char_policy option -- it was being ignored
+
 Version 0.08
     * Fixed problem encoding scalars that have been used as both
       strings and numbers (types SVt_PVN, SVt_PVIV)

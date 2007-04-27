@@ -33,6 +33,7 @@ extern "C" {
 #endif
 
 #define JSON_DO_DEBUG 0
+#define JSON_DUMP_OPTIONS 0
 #define JSON_DO_EXTENDED_ERRORS 0
 
 #include <stdarg.h>
@@ -107,6 +108,7 @@ JSON_ERROR(char * fmt, ...) {
 #define kUseExceptions 1
 #define kDumpVars (1 << 1)
 #define kPrettyPrint (1 << 2)
+#define kEscapeMultiByte (1 << 3)
 
 typedef struct {
     STRLEN len;
@@ -1277,6 +1279,10 @@ fast_escape_json_str(self_context * self, SV * sv_str) {
         return newSVpv("\"\"", 2);
     }
 
+    if (self->flags & kEscapeMultiByte) {
+        escape_unicode = 1;
+    }
+
     /* get a better estimate of needed buffer size */
     needed_len = data_str_len * 2 + 2;
 
@@ -1512,6 +1518,55 @@ setup_self_context(SV *self_sv, self_context *self) {
     if (ptr && SvTRUE(*ptr)) {
         self->flags |= kPrettyPrint;
     }
+
+    ptr = hv_fetch((HV *)self_hash, "escape_multi_byte", 17, 0);
+    if (ptr && SvTRUE(*ptr)) {
+        self->flags |= kEscapeMultiByte;
+    }
+
+#if JSON_DUMP_OPTIONS
+    {
+        char * char_policy = NULL;
+        switch (self->bad_char_policy) {
+          case kBadCharError:
+              char_policy = "error";
+              break;
+
+          case kBadCharConvert:
+              char_policy = "convert";
+              break;
+
+          case kBadCharPassThrough:
+              char_policy = "pass_through";
+              break;
+
+          default:
+              char_policy = "unrecognized bad_char policy";
+              break;
+        }
+
+        fprintf(stderr, "\nBad char policy: %s\n", char_policy);
+
+        if (self->flags & kUseExceptions) {
+            fprintf(stderr, "Use Exceptions\n");
+        }
+        
+        if (self->flags & kDumpVars) {
+            fprintf(stderr, "Dump Vars\n");
+        }
+
+        if (self->flags & kPrettyPrint) {
+            fprintf(stderr, "Pretty Print\n");
+        }
+
+        if (self->flags & kEscapeMultiByte) {
+            fprintf(stderr, "Escape Multi-Byte Characters\n");
+        }
+        
+        fprintf(stderr, "\n");
+        fflush(stderr);
+    }
+#endif
 
 }
 
