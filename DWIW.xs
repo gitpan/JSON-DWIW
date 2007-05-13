@@ -109,7 +109,9 @@ JSON_ERROR(char * fmt, ...) {
 #define kDumpVars (1 << 1)
 #define kPrettyPrint (1 << 2)
 #define kEscapeMultiByte (1 << 3)
+#define kConvertBool (1 << 4)
 
+/* for converting from JSON */
 typedef struct {
     STRLEN len;
     char * data;
@@ -123,6 +125,8 @@ typedef struct {
 #define kBadCharError 0
 #define kBadCharConvert 1
 #define kBadCharPassThrough 2
+
+/* for converting to JSON */
 typedef struct {
     SV * error;
     int bare_keys;
@@ -250,10 +254,42 @@ _json_call_method_one_arg_one_return(SV * obj_or_class, char * method, SV * arg,
     LEAVE;
 }
 
+static void
+_json_call_method_no_arg_one_return(SV * obj_or_class, char * method, SV ** rv_ptr) {
+    dSP;
+
+    ENTER;
+    SAVETMPS;
+    PUSHMARK(SP);
+    XPUSHs(obj_or_class);
+    PUTBACK;
+
+    call_method(method, G_SCALAR);
+
+    SPAGAIN;
+
+    *rv_ptr = POPs;
+    if (SvOK(*rv_ptr)) {
+        SvREFCNT_inc(*rv_ptr);
+    }
+
+    PUTBACK;
+    FREETMPS;
+    LEAVE;
+}
+
 static SV *
 json_call_method_one_arg_one_return(SV * obj_or_class, char * method, SV * arg) {
     SV * rv = NULL;
     _json_call_method_one_arg_one_return(obj_or_class, method, arg, &rv);
+
+    return rv;
+}
+
+static SV *
+json_call_method_no_arg_one_return(SV * obj_or_class, char * method) {
+    SV * rv = NULL;
+    _json_call_method_no_arg_one_return(obj_or_class, method, &rv);
 
     return rv;
 }
@@ -276,6 +312,23 @@ get_new_big_float(SV * num_string) {
     rv = json_call_method_one_arg_one_return(class_name, "new", num_string);
     SvREFCNT_dec(class_name);
     return rv;
+}
+
+static SV *
+get_new_bool_obj(int bool_val) {
+    SV * class_name = newSVpv("JSON::DWIW::Boolean", 19);
+    SV * obj;
+
+    if (bool_val) {
+        obj = json_call_method_no_arg_one_return(class_name, "true");
+    }
+    else {
+        obj = json_call_method_no_arg_one_return(class_name, "false");
+    }
+    
+    SvREFCNT_dec(class_name);
+
+    return obj;
 }
 
 static STRLEN
@@ -724,11 +777,22 @@ json_parse_word(json_context *ctx, SV * tmp_str, int is_identifier) {
                 if (! is_identifier) {
                     if (strnEQ("true", ctx->data + start_pos, ctx->pos - start_pos)) {
                         JSON_DEBUG("returning true from json_parse_word() at byte %d", ctx->pos);
-                        return _append_c_buffer(rv, "1", 1);
+                        if (ctx->flags & kConvertBool) {
+                            return get_new_bool_obj(1);
+                        }
+                        else {
+                            return _append_c_buffer(rv, "1", 1);
+                        }
                     }
                     else if (strnEQ("false", ctx->data + start_pos, ctx->pos - start_pos)) {
                         JSON_DEBUG("returning false from json_parse_word() at byte %d", ctx->pos);
-                        return _append_c_buffer(rv, "0", 1);
+
+                       if (ctx->flags & kConvertBool) {
+                            return get_new_bool_obj(0);
+                        }
+                        else {
+                            return _append_c_buffer(rv, "0", 1);
+                        }
                     }
                     else if (strnEQ("null", ctx->data + start_pos, ctx->pos - start_pos)) {
                         JSON_DEBUG("returning undef from json_parse_word() at byte %d", ctx->pos);
@@ -1198,7 +1262,9 @@ _private_from_json (SV * self, SV * data_sv, SV ** error_msg, int *throw_excepti
     char * data_str;
     json_context ctx;
     SV * val;
-
+    SV ** ptr;
+    SV * self_hash = SvRV(self);
+    
     data_str = SvPV(data_sv, data_str_len);
     if (!data_str) {
         /* return undef */
@@ -1216,7 +1282,12 @@ _private_from_json (SV * self, SV * data_sv, SV ** error_msg, int *throw_excepti
     ctx.pos = 0;
     ctx.error = (SV *)0;
     ctx.self = self;
-    ctx.bad_char_policy = get_bad_char_policy((HV *)SvRV(self));
+    ctx.bad_char_policy = get_bad_char_policy((HV *)self_hash);
+
+    ptr = hv_fetch((HV *)self_hash, "convert_bool", 12, 0);
+    if (ptr && SvTRUE(*ptr)) {
+        ctx.flags |= kConvertBool;
+    }
 
     val = parse_json(&ctx);
     if (ctx.error) {
@@ -1523,6 +1594,7 @@ setup_self_context(SV *self_sv, self_context *self) {
     if (ptr && SvTRUE(*ptr)) {
         self->flags |= kEscapeMultiByte;
     }
+
 
 #if JSON_DUMP_OPTIONS
     {
@@ -1965,7 +2037,17 @@ fast_to_json(self_context * self, SV * data_ref, int indent_level) {
     JSON_DEBUG("is a reference");
 
     if (sv_isobject(data_ref)) {
-        if (sv_derived_from(data_ref, "Math::BigInt")
+        if (sv_isa(data_ref, "JSON::DWIW::Boolean")) {
+            if (SvTRUE(data_ref)) {
+                sv_setpvn(rsv, "true", 4);
+                return rsv;
+            }
+            else {
+                sv_setpvn(rsv, "false", 5);
+                return rsv;
+            }
+        }
+        else if (sv_derived_from(data_ref, "Math::BigInt")
             || sv_derived_from(data_ref, "Math::BigFloat")) {
             JSON_DEBUG("found big number");
             tmp = newSVpv("", 0);
@@ -2267,6 +2349,93 @@ peek_scalar(self, val)
     }
 
     RETVAL = &PL_sv_yes;
+
+    OUTPUT:
+    RETVAL
+
+int
+is_true(self, val)
+ SV * self
+ SV * val
+
+    CODE:
+    self = self; /* get rid of compiler warnings */
+    RETVAL = SvTRUE(val);
+
+    OUTPUT:
+    RETVAL
+
+SV *
+is_valid_utf8(self, str)
+ SV * self
+ SV * str
+
+    PREINIT:
+    SV * rv = &PL_sv_no;
+    U8 * s;
+    STRLEN len;
+
+    CODE:
+    self = self;
+    s = (U8 *)SvPV(str, len);
+    if (is_utf8_string(s, len)) {
+        rv = &PL_sv_yes;
+    }
+
+    RETVAL = rv;
+
+    OUTPUT:
+    RETVAL
+
+SV *
+flagged_as_utf8(self, str)
+ SV * self
+ SV * str
+
+    PREINIT:
+    SV * rv = &PL_sv_no;
+
+    CODE:
+    self = self;
+    if (SvUTF8(str)) {
+        rv = &PL_sv_yes;
+    }
+
+    RETVAL = rv;
+
+    OUTPUT:
+    RETVAL
+
+SV *
+flag_as_utf8(self, str)
+ SV * self
+ SV * str
+
+    PREINIT:
+    SV * rv = &PL_sv_yes;
+
+    CODE:
+    self = self;
+    SvUTF8_on(str);
+
+    RETVAL = rv;
+
+    OUTPUT:
+    RETVAL
+
+SV *
+unflag_as_utf8(self, str)
+ SV * self
+ SV * str
+
+    PREINIT:
+    SV * rv = &PL_sv_yes;
+
+    CODE:
+    self = self;
+    SvUTF8_off(str);
+
+    RETVAL = rv;
 
     OUTPUT:
     RETVAL

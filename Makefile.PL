@@ -21,6 +21,7 @@ use Carp;
                   ABSTRACT => 'JSON converter that does what I want',
                   AUTHOR => 'DON OWENS <don@regexguy.com>',
                   PM => { 'lib/JSON/DWIW.pm' => '$(INST_LIBDIR)/DWIW.pm',
+                          'lib/JSON/DWIW/Boolean.pm' => '$(INST_LIBDIR)/DWIW/Boolean.pm',
                         },
                   dist => { COMPRESS => 'gzip -9f', SUFFIX => 'gz' },
                   DIR => [],

@@ -1,3 +1,8 @@
+Version 0.10
+    * Add methods true() and false() to return objects that will get
+      encoded as true and false, respectively, when converting to
+      JSON.
+
 Version 0.09
     * Fixed the bad_char_policy option -- it was being ignored
 

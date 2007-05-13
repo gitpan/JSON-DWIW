@@ -15,7 +15,7 @@
 
 =head1 NAME
 
- JSON::DWIW - JSON converter that Does What I Want
+JSON::DWIW - JSON converter that Does What I Want
 
 =head1 SYNOPSIS
 
@@ -29,7 +29,13 @@
 
  my $data = JSON::DWIW->from_json($json_str, \%options);
  my $str = JSON::DWIW->to_json($data, \%options);
- 
+
+ my $true_value = JSON::DWIW->true;
+ my $false_value = JSON::DWIW->false;
+ my $data = { var1 => "stuff", var2 => $true_value,
+              var3 => $false_value, };
+ my $str = JSON::DWIW->to_json($data);
+
  use JSON::DWIW qw(:all);
  my $data = from_json($json_str);
  my $str = to_json($data);
@@ -42,20 +48,23 @@ does things by default that I think should be done when working
 with JSON in Perl.  This module also encodes and decodes faster
 than JSON.pm and JSON::Syck in my benchmarks.
 
-This means that any piece of data in Perl will get converted to
-something in JSON instead of throwing an exception.  It also
-means that output will be strict JSON, while accepted input will
-be flexible, without having to set any options.
+This means that any piece of data in Perl (assuming it's valid
+unicode) will get converted to something in JSON instead of
+throwing an exception.  It also means that output will be strict
+JSON, while accepted input will be flexible, without having to
+set any options.
 
 =head2 Encoding
 
 Perl objects get encoded as their underlying data structure, with
 the exception of Math::BigInt and Math::BigFloat, which will be
-output as numbers.  For example, a blessed hash ref will be
-represented as an object in JSON, a blessed array will be
-represented as an array. etc.  A reference to a scalar is
-dereferenced and represented as the scalar itself.  Globs,
-Code refs, etc., get stringified.
+output as numbers, and JSON::DWIW::Boolean, which will get output
+as a true or false value (see the true() and false() methods).
+For example, a blessed hash ref will be represented as an object
+in JSON, a blessed array will be represented as an array. etc.  A
+reference to a scalar is dereferenced and represented as the
+scalar itself.  Globs, Code refs, etc., get stringified, and
+undef becomes null.
 
 Scalars that have been used as both a string and a number will be
 output as a string.  A reference to a reference is currently
@@ -102,6 +111,10 @@ things not in the JSON spec:
 use strict;
 use warnings;
 
+use 5.006_00;
+
+use JSON::DWIW::Boolean;
+
 package JSON::DWIW;
 
 use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
@@ -117,7 +130,7 @@ package JSON::DWIW;
 
 Exporter::export_ok_tags('all');
 
-our $VERSION = '0.09';
+our $VERSION = '0.10';
 
 {
     package JSON::DWIW::Exporter;
@@ -217,6 +230,16 @@ package JSON::DWIW;
  Add white space to the output when calling to_json() to make the
  output easier for humans to read.
 
+=head3 convert_bool
+
+ When converting from JSON, return objects for booleans so that
+ "true" and "false" can be maintained when encoding and decoding.
+ If this flag is set, then "true" becomes a JSON::DWIW::Boolean
+ object that evaluates to true in a boolean context, and "false"
+ becomes an object that evaluates to false in a boolean context.
+ These objects are recognized by the to_json() method, so they
+ will be output as "true" or "false" instead of "1" or "0".
+
 =cut
 
 sub new {
@@ -232,7 +255,7 @@ sub new {
     }
 
     foreach my $field (qw/bare_keys use_exceptions bad_char_policy dump_vars pretty
-                          escape_multi_byte/) {
+                          escape_multi_byte convert_bool/) {
         if (exists($params->{$field})) {
             $self->{$field} = $params->{$field};
         }
@@ -264,6 +287,7 @@ sub new {
  Aliases: toJson, toJSON, objToJson
 
 =cut
+
 sub to_json {
     my $proto = shift;
     my $data;
@@ -330,6 +354,7 @@ sub to_json {
  Aliases: fromJson, fromJSON, jsonToObj
 
 =cut
+
 sub from_json {
     my $proto = shift;
     my $json;
@@ -372,6 +397,29 @@ sub from_json {
     *fromJSON = \&from_json;
 }
 
+=pod
+
+=head2 true()
+
+ Returns an object that will get output as a true value when encoding to JSON.
+
+=cut
+
+sub true {
+    return JSON::DWIW::Boolean->true;
+}
+
+=pod
+
+=head2 false()
+
+ Returns an object that will get output as a false value when encoding to JSON.
+
+=cut
+
+sub false {
+    return JSON::DWIW::Boolean->false;
+}
 
 =pod
 
@@ -455,12 +503,16 @@ PURPOSE.
 
 =head1 SEE ALSO
 
- JSON
- JSON::Syck (included in YAML::Syck)
+ The JSON home page: L<http://json.org/>
+ The JSON spec: L<http://www.ietf.org/rfc/rfc4627.txt>
+ The JSON-RPC spec: L<http://json-rpc.org/wd/JSON-RPC-1-1-WD-20060807.html>
+
+ L<JSON>
+ L<JSON::Syck> (included in L<YAML::Syck>)
 
 =head1 VERSION
 
-0.09
+0.10
 
 =cut
 
