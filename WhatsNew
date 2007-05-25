@@ -1,3 +1,10 @@
+Version 0.11
+    * Changed the way null gets converted to undef when converting
+      from JSON.  Instead of returning &PL_sv_undef, it now gets
+      returned as a new, unitialized SV.  This keeps Data::Dumper from
+      outputing undef as an alias to another undef value in the data
+      structure.
+
 Version 0.10
     * Add methods true() and false() to return objects that will get
       encoded as true and false, respectively, when converting to

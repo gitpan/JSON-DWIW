@@ -796,7 +796,7 @@ json_parse_word(json_context *ctx, SV * tmp_str, int is_identifier) {
                     }
                     else if (strnEQ("null", ctx->data + start_pos, ctx->pos - start_pos)) {
                         JSON_DEBUG("returning undef from json_parse_word() at byte %d", ctx->pos);
-                        return (SV *)&PL_sv_undef;
+                        return (SV *)newSV(0);
                     }
                 }
                 JSON_DEBUG("returning from json_parse_word() at byte %d", ctx->pos);
@@ -2436,6 +2436,94 @@ unflag_as_utf8(self, str)
     SvUTF8_off(str);
 
     RETVAL = rv;
+
+    OUTPUT:
+    RETVAL
+
+SV *
+code_point_to_hex_bytes(self, code_point_sv)
+ SV * self
+ SV * code_point_sv
+
+    PREINIT:
+    UV code_point;
+    U8 utf8_bytes[5];
+    U8 * tmp;
+    STRLEN len = 0;
+    SV * rv;
+
+    CODE:
+    utf8_bytes[4] = '\x00';
+    code_point = SvUV(code_point_sv);
+    tmp = convert_uv_to_utf8(utf8_bytes, code_point);
+    rv = newSVpv("", 0);
+    if (PTR2UV(tmp) > PTR2UV(utf8_bytes)) {
+        STRLEN i;
+        len = PTR2UV(tmp) - PTR2UV(utf8_bytes);
+        for (i = 0; i < len; i++) {
+            sv_catpvf(rv, "\\x%02x", (unsigned int)utf8_bytes[i]);
+        }
+    }
+    else {
+
+    }
+
+    RETVAL = rv;
+
+    OUTPUT:
+    RETVAL
+
+SV *
+bytes_to_code_points(self, bytes)
+ SV * self
+ SV * bytes
+
+    PREINIT:
+    U8 * data_str;
+    STRLEN data_str_len;
+    AV * array = newAV();
+    STRLEN len = 0;
+    UV this_char;
+    STRLEN pos = 0;
+    I32 max_i;
+    SV * sv = NULL;
+    STRLEN i;
+    SV ** element;
+
+    CODE:
+    if (SvROK(bytes) && SvTYPE(SvRV(bytes)) == SVt_PVAV) {
+        AV * av = (AV *)SvRV(bytes);
+        max_i = av_len(av);
+        sv = newSV(max_i);
+        sv_setpvn(sv, "", 0);
+
+        for (i = 0; i <= max_i; i++) {
+            element = av_fetch(av, i , 0);
+            if (element && *element) {
+                this_char = SvUV(*element);
+                fprintf(stderr, "%02x\n", this_char);
+            }
+            else {
+                this_char = 0;
+            }
+            sv_catpvf(sv, "%c", (unsigned char)this_char);
+        }
+        bytes = sv;
+     }
+
+    data_str = (U8 *)SvPV(bytes, data_str_len);
+
+    while (pos < data_str_len) {
+        this_char = convert_utf8_to_uv(&data_str[pos], &len);
+        pos += len;
+        av_push(array, newSVuv(this_char));
+    }
+
+    if (sv) {
+        SvREFCNT_dec(sv);
+    }
+
+     RETVAL = newRV_noinc((SV *)array);
 
     OUTPUT:
     RETVAL
