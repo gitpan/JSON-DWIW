@@ -33,6 +33,7 @@ extern "C" {
 #endif
 
 #define JSON_DO_DEBUG 0
+#define JSON_DO_TRACE 0
 #define JSON_DUMP_OPTIONS 0
 #define JSON_DO_EXTENDED_ERRORS 0
 
@@ -55,6 +56,28 @@ extern "C" {
 static void
 JSON_DEBUG(char *fmt, ...) {
 #if JSON_DO_DEBUG
+    va_list ap;
+
+    va_start(ap, fmt);
+    vprintf(fmt, ap);
+    printf("\n");
+    va_end(ap);
+#endif
+
+}
+#endif
+
+#ifdef __GNUC__
+#if JSON_DO_TRACE
+#define JSON_TRACE(...) printf("%s (%d) - ", __FILE__, __LINE__); printf(__VA_ARGS__); printf("\n"); fflush(stdout)
+#else
+#define JSON_TRACE(...)
+#endif
+#else
+
+static void
+JSON_TRACE(char *fmt, ...) {
+#if JSON_DO_TRACE
     va_list ap;
 
     va_start(ap, fmt);
@@ -1513,7 +1536,8 @@ encode_array(self_context * self, AV * array, int indent_level) {
             /* need to call mg_get(val) to get the actual value if this is a tied array */
             /* see sv_magic */
             if (magic_ptr || SvTYPE(*element) == SVt_PVMG) {
-                mg_get(*element);
+                /* mg_get(*element); */ /* causes assertion failure in perl 5.8.5 if tied scalar */
+                SvGETMAGIC(*element);
             }
 
             tmp_sv = fast_to_json(self, *element, indent_level + 1);
@@ -1720,7 +1744,8 @@ encode_hash(self_context * self, HV * hash, int indent_level) {
         /* need to call mg_get(val) to get the actual value if this is a tied hash */
         /* see sv_magic */
         if (magic_ptr || SvTYPE(val) == SVt_PVMG) {
-            mg_get(val);
+            /* mg_get(val); */ /* crashes in Perl 5.8.5 if doesn't have "get magic" */
+            SvGETMAGIC(val);
         }
 
         if (self->flags & kDumpVars) {
@@ -1923,6 +1948,7 @@ fast_to_json(self_context * self, SV * data_ref, int indent_level) {
         if (SvOK(data)) {
             /* scalar */
             type = SvTYPE(data);
+            JSON_TRACE("found type %u", type);
             switch (type) {
               case SVt_NULL:
                 /* undef? */
@@ -1942,13 +1968,14 @@ fast_to_json(self_context * self, SV * data_ref, int indent_level) {
                   break;
 
               case SVt_PV:
-                sv_catsv(rsv, data);
-                tmp = rsv;
-                rsv = fast_escape_json_str(self, tmp);
-                SvREFCNT_dec(tmp);
-                return rsv; /* this works for the error case as well */
-                break;
-
+                  JSON_TRACE("found SVt_PV");
+                  sv_catsv(rsv, data);
+                  tmp = rsv;
+                  rsv = fast_escape_json_str(self, tmp);
+                  SvREFCNT_dec(tmp);
+                  return rsv; /* this works for the error case as well */
+                  break;
+                  
               case SVt_PVIV:
               case SVt_PVNV:
                   sv_catsv(rsv, data);
@@ -2527,4 +2554,51 @@ bytes_to_code_points(self, bytes)
 
     OUTPUT:
     RETVAL
+
+SV *
+make_data()
+    PREINIT:
+    SV * key = newSV(0);
+    HV * hash = newHV();
+    SV * val;
+    HV * hash2;
+    HV * hash3;
+
+    CODE:
+    sv_setpvn(key, "var1", 4);
+    val = &PL_sv_undef;
+    hv_store_ent(hash, key, val, 0);
+
+    sv_setpvn(key, "var2", 4);
+    val = newSVpv("val1", 4);
+    hv_store_ent(hash, key, val, 0);
+
+    hash2 = newHV();
+    sv_setpvn(key, "var3", 4);
+    val = newSVpv("val3", 4);
+    hv_store_ent(hash2, key, val, 0);
+
+    hash3 = newHV();
+    sv_setpvn(key, "var4", 4);
+    hv_store_ent(hash2, key, (SV *)newRV_noinc((SV *)hash3), 0);
+    sv_setpvn(key, "var5", 4);
+    hv_store_ent(hash3, key, &PL_sv_undef, 0);
+
+    hv_store_ent(hash, key, (SV *)newRV_noinc((SV *)hash2), 0);
+    
+    SvREFCNT_dec(key);
+
+    RETVAL = (SV *)newRV_noinc((SV *)hash);
+    OUTPUT:
+    RETVAL
+
+
+SV *
+makeundef(self)
+ SV * self
+
+  CODE:
+  RETVAL = &PL_sv_undef;
+  OUTPUT:
+  RETVAL
 

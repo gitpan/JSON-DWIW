@@ -1,3 +1,7 @@
+Version 0.12
+    * Fixed assertion failure in perl 5.8.5 when finding a tied scalar
+      in a hash value
+
 Version 0.11
     * Changed the way null gets converted to undef when converting
       from JSON.  Instead of returning &PL_sv_undef, it now gets

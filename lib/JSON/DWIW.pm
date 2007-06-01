@@ -130,7 +130,7 @@ package JSON::DWIW;
 
 Exporter::export_ok_tags('all');
 
-our $VERSION = '0.11';
+our $VERSION = '0.12';
 
 {
     package JSON::DWIW::Exporter;
@@ -512,7 +512,7 @@ PURPOSE.
 
 =head1 VERSION
 
-0.11
+0.12
 
 =cut
 
