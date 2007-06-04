@@ -249,5 +249,5 @@ SEE ALSO
      L<JSON::Syck> (included in L<YAML::Syck>)
 
 VERSION
-    0.12
+    0.13
 

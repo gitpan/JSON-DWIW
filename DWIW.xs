@@ -1498,6 +1498,7 @@ encode_array(self_context * self, AV * array, int indent_level) {
     SV * tmp_sv = NULL;
     I32 max_i = av_len(array); /* max index, not length */
     I32 i;
+    I32 j;
     SV ** element = NULL;
     I32 num_spaces = 0;
     MAGIC * magic_ptr = NULL;
@@ -1544,7 +1545,7 @@ encode_array(self_context * self, AV * array, int indent_level) {
 
             if (self->flags & kPrettyPrint) {
                 sv_catpvn(rsv, "\n", 1);
-                for (i = 0; i < num_spaces; i++) {
+                for (j = 0; j < num_spaces; j++) {
                     sv_catpvn(rsv, " ", 1);
                 }
             }
@@ -1570,7 +1571,7 @@ encode_array(self_context * self, AV * array, int indent_level) {
     if (self->flags & kPrettyPrint) {
         sv_catpvn(rsv, "\n", 1);
         num_spaces = indent_level * 4;
-        for (i = 0; i < num_spaces; i++) {
+        for (j = 0; j < num_spaces; j++) {
             sv_catpvn(rsv, " ", 1);
         }
     }

@@ -1,3 +1,7 @@
+Version 0.13
+    * Fixed problem where array elements may be missing when the
+      "pretty" option is turned on
+
 Version 0.12
     * Fixed assertion failure in perl 5.8.5 when finding a tied scalar
       in a hash value

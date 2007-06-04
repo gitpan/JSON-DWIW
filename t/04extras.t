@@ -9,7 +9,7 @@ use Test;
 
 # main
 {
-    BEGIN { plan tests => 21 }
+    BEGIN { plan tests => 22 }
 
     use JSON::DWIW;
 
@@ -74,6 +74,15 @@ use Test;
                                                });
     }
     ok($json_str eq '{"var":"stuff\u00e9stuff"}');
+
+    # make sure no elements are left out when pretty-printing
+    # (bug in version 0.12)
+    $data = { var1 => 'val1', var2 => { stuff1 => 'content2', stuff2 => 1 }, var3 => 'val3',
+              var4 => [ 'test1', 'test2', 'test3' ]};
+    $json_str = JSON::DWIW->to_json($data, { pretty => 1 });
+    $data = JSON::DWIW->from_json($json_str);
+    ok(scalar(@{ $data->{var4} }) == 3 and $data->{var2}{stuff1} and $data->{var2}{stuff2}
+       and scalar(keys(%$data)) == 4);
                                    
 }
 
