@@ -1,13 +1,16 @@
 /*
 Copyright (c) 2007 Don Owens <don@regexguy.com>.  All rights reserved.
 
-This is free software; you can redistribute it and/or modify it
-under the same terms as Perl itself.  See perlartistic.
+ This is free software; you can redistribute it and/or modify it under
+ the Perl Artistic license.  You should have received a copy of the
+ Artistic license with this distribution, in the file named
+ "Artistic".  You may also obtain a copy from
+ http://regexguy.com/license/Artistic
 
-This program is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.
+ This program is distributed in the hope that it will be
+ useful, but WITHOUT ANY WARRANTY; without even the implied
+ warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
+ PURPOSE.
 */
 
 /* #define PERL_NO_GET_CONTEXT */
@@ -143,6 +146,10 @@ typedef struct {
     SV * self;
     int flags;
     UV bad_char_policy;
+    unsigned int line;
+    unsigned int col;
+    UV cur_char;
+    unsigned int cur_char_len;
 } json_context;
 
 #define kBadCharError 0
@@ -159,8 +166,7 @@ typedef struct {
 } self_context;
 
 static SV * json_parse_value(json_context *ctx, int is_identifier);
-static SV * fast_to_json(self_context * self, SV * data_ref, int indent_level);
-static void json_dump_sv(SV * sv, UV flags);
+static SV * to_json(self_context * self, SV * data_ref, int indent_level);
 
 static UV
 get_bad_char_policy(HV * self_hash) {
@@ -354,132 +360,105 @@ get_new_bool_obj(int bool_val) {
     return obj;
 }
 
-static STRLEN
-get_sv_length(SV * sv) {
-    U8 * data_str = NULL;
-    STRLEN data_str_len = 0;
-    
-    if (!sv) {
-        return 0;
-    }
+#define JsSvLen(val) sv_len(val)
 
-    data_str = (U8 *)SvPV(sv, data_str_len);
+#define JsDumpSv(sv, flags) ( (flags & kDumpVars) ? sv_dump(sv) : 0 )
 
-    return data_str_len;
-}
+#define json_next_byte(ctx0) ( (ctx)->pos >= (ctx)->len ? 0 : (ctx)->data[(ctx)->pos++] )
+#define json_peek_byte(ctx) ( (ctx)->pos >= (ctx)->len ? 0 : (ctx)->data[(ctx)->pos] )
 
-static void
-json_dump_sv(SV * sv, UV flags) {
-    if (flags & kDumpVars) {
-        sv_dump(sv);
-    }
-}
+#ifdef IS_PERL_5_6
+#define convert_utf8_to_uv(utf8, len_ptr) utf8_to_uv_simple(utf8, len_ptr)
+#else
+#define convert_utf8_to_uv(utf8, len_ptr)  utf8_to_uvuni(utf8, len_ptr)
+#endif
 
-static char
-json_next_byte(json_context *ctx) {
-    char rv;
+#ifdef IS_PERL_5_6
+#define convert_uv_to_utf8(buf, uv) uv_to_utf8(buf, uv)
+#else
+#define convert_uv_to_utf8(buf, uv) uvuni_to_utf8(buf, uv)
+#endif
 
-    if (ctx->pos >= ctx->len) {
-        return (char)0;
-    }
+#define JsHaveMoreChars(ctx) ( (ctx)->pos < (ctx)->len )
 
-    rv = ctx->data[ctx->pos];
-    ctx->pos++;
-    return rv;
-}
+#define JsCurChar(ctx) ( JsHaveMoreChars(ctx) ? ( UTF8_IS_INVARIANT(ctx->data[ctx->pos]) ? (ctx->data[ctx->pos]) : ( convert_utf8_to_uv((unsigned char *)&(ctx->data[ctx->pos]), NULL))) : 0 )
 
-static char
-json_peek_byte(json_context *ctx) {
-    if (ctx->pos >= ctx->len) {
-        return (char)0;
-    }
+#define JsNextChar(ctx) ( JsHaveMoreChars(ctx) ? (UTF8_IS_INVARIANT(ctx->data[ctx->pos]) ? (ctx->col++, ctx->data[ctx->pos++]) : json_next_multibyte_char(ctx)) : 0 )
 
-    return ctx->data[ctx->pos];
-}
+#define JsNextCharWithArg(ctx, uv, len) ( JsHaveMoreChars(ctx) ? (UTF8_IS_INVARIANT(ctx->data[ctx->pos]) ? (ctx->col++, ctx->data[ctx->pos++]) : (uv = convert_utf8_to_uv((unsigned char *)&(ctx->data[ctx->pos]), &len), ctx->pos += len, ctx->col += len, uv) ) : 0 )
 
 static UV
-convert_utf8_to_uv(U8 * utf8, STRLEN * len_ptr) {
-#ifdef IS_PERL_5_6
-    return utf8_to_uv_simple(utf8, len_ptr);
-#else
-    return utf8_to_uvuni(utf8, len_ptr);
-#endif
+json_next_multibyte_char(json_context * ctx) {
+    UV uv = 0;
+    STRLEN len = 0;
+
+    uv = convert_utf8_to_uv((unsigned char *)&(ctx->data[ctx->pos]), &len);
+    ctx->pos += len;
+    ctx->col += len;
+
+    return uv;
 }
 
-static U8 *
-convert_uv_to_utf8(U8 *buf, UV uv) {
-#ifdef IS_PERL_5_6
-    return uv_to_utf8(buf, uv);
-#else
-    return uvuni_to_utf8(buf, uv);
-#endif
-}
-
+/*
 static UV
 json_next_char(json_context *ctx) {
     UV uv = 0;
     STRLEN len = 0;
 
-    if (ctx->pos >= ctx->len) {
-        JSON_DEBUG("pos=%d, len=%d", ctx->pos, ctx->len);
-        return 0;
-    }
-
     if (UTF8_IS_INVARIANT(ctx->data[ctx->pos])) {
         uv = ctx->data[ctx->pos];
         ctx->pos++;
+        ctx->col++;
     }
     else {
         uv = convert_utf8_to_uv((unsigned char *)&(ctx->data[ctx->pos]), &len);
         ctx->pos += len;
+        ctx->col += len;
     }
 
-    JSON_DEBUG("pos=%d, len=%d, char=%c (%#04x)", ctx->pos, ctx->len, uv>0x80 ? '?' : (char)uv, uv);
+    JSON_DEBUG("pos=%d, len=%d, char=%c (%#04x), line %u, col %u", ctx->pos, ctx->len, (uv>0x80 ? '?' : (char)uv), uv, ctx->line, ctx->col);
 
     return uv;
 }
-
-static UV
-json_peek_char(json_context *ctx) {
-    UV uv = 0;
-    STRLEN len = 0;
-
-    if (ctx->pos >= ctx->len) {
-        return 0;
-    }
-
-    if (UTF8_IS_INVARIANT(ctx->data[ctx->pos])) {
-        return ctx->data[ctx->pos];
-    }
-    else {
-        uv = convert_utf8_to_uv((unsigned char *)&(ctx->data[ctx->pos]), &len);
-    }
-
-    return uv;
-}
+*/
 
 static void
 json_eat_whitespace(json_context *ctx, UV flags) {
     UV this_char;
     int break_out = 0;
+    UV tmp_uv;
+    STRLEN tmp_len;
 
     JSON_DEBUG("json_eat_whitespace: starting pos %d", ctx->pos);
 
     while (ctx->pos < ctx->len) {
-        this_char = json_peek_char(ctx);
+        this_char = JsCurChar(ctx);
         JSON_DEBUG("looking at %04x at pos %d", this_char, ctx->pos);
         
         switch (this_char) {
-          case 0x20:
-          case 0x09:
-          case 0x0a:
-          case 0x0d:
-              json_next_char(ctx);
+          case 0x20:   /* space */
+          case 0x09:   /* tab */
+          case 0x0b:   /* vertical tab */
+          case 0x0c:   /* form feed */
+          case 0x0d:   /* carriage return */
+          case 0x00a0: /* NSBP - non-breaking space */
+          case 0x200b: /* ZWSP - zero width space */
+          case 0x2029: /* PS - paragraph separator */
+          case 0x2060: /* WJ - word joiner */
+              JsNextCharWithArg(ctx, tmp_uv, tmp_len);
+              break;
+
+          case 0x0a:   /* newline */
+          case 0x0085: /* NEL - next line */
+          case 0x2028: /* LS - line separator */
+              JsNextCharWithArg(ctx, tmp_uv, tmp_len);
+              ctx->line++;
+              ctx->col = 0;
               break;
 
           case ',':
               if (flags & kCommasAreWhitespace) {
-                  json_next_char(ctx);
+                  JsNextCharWithArg(ctx, tmp_uv, tmp_len);
               }
               else {
                   break_out = 1;
@@ -487,14 +466,14 @@ json_eat_whitespace(json_context *ctx, UV flags) {
               break;
             
           case '/':
-              json_next_char(ctx);
-              this_char = json_peek_char(ctx);
+              JsNextCharWithArg(ctx, tmp_uv, tmp_len);
+              this_char = JsCurChar(ctx);
               JSON_DEBUG("looking at %04x at pos %d", this_char, ctx->pos);
               if (this_char == '/') {
                   JSON_DEBUG("in C++ style comment at pos %d", ctx->pos);
                   while (ctx->pos < ctx->len) {
-                      json_next_char(ctx);
-                      this_char = json_peek_char(ctx);
+                      JsNextCharWithArg(ctx, tmp_uv, tmp_len);
+                      this_char = JsCurChar(ctx);
                       if (this_char == 0x0a || this_char == 0x0d) {
                           /* FIXME: should peak at the next to see if windows line ending, etc. */
                           break;
@@ -502,23 +481,23 @@ json_eat_whitespace(json_context *ctx, UV flags) {
                   }
               }
               else if (this_char == '*') {
-                  json_next_char(ctx);
-                  this_char = json_peek_char(ctx);
+                  JsNextCharWithArg(ctx, tmp_uv, tmp_len);
+                  this_char = JsCurChar(ctx);
                   JSON_DEBUG("in comment at pos %d, looking at %04x", ctx->pos, this_char);
 
                   while (ctx->pos < ctx->len) {
                       if (this_char == '*') {
-                          json_next_char(ctx);
-                          this_char = json_peek_char(ctx);
+                          JsNextCharWithArg(ctx, tmp_uv, tmp_len);
+                          this_char = JsCurChar(ctx);
                           if (this_char == '/') {
                               /* end of comment */
-                              json_next_char(ctx);
+                              JsNextCharWithArg(ctx, tmp_uv, tmp_len);
                               break;
                           }
                       }
                       else {
-                          json_next_char(ctx);
-                          this_char = json_peek_char(ctx);
+                          JsNextCharWithArg(ctx, tmp_uv, tmp_len);
+                          this_char = JsCurChar(ctx);
                       }
                   }
               }
@@ -542,29 +521,9 @@ json_eat_whitespace(json_context *ctx, UV flags) {
     JSON_DEBUG("json_eat_whitespace: ending pos %d", ctx->pos);
 }
 
-static SV *
-_append_buffer(SV * str, json_context *ctx, STRLEN start_pos, STRLEN offset) {
-    if (str) {
-        sv_catpvn(str, ctx->data + start_pos, ctx->pos - start_pos - offset);
-    }
-    else {
-        str = newSVpv(ctx->data + start_pos, ctx->pos - start_pos - offset);
-    }
-    
-    return str;
-}
+#define JsAppendBuf(str, ctx, start_pos, offset) ( str ? (sv_catpvn(str, ctx->data + start_pos, ctx->pos - start_pos - offset), str) : newSVpv(ctx->data + start_pos, ctx->pos - start_pos - offset) )
 
-static SV *
-_append_c_buffer(SV * str, const char *buf, STRLEN len) {
-    if (str) {
-        sv_catpvn(str, buf, len);
-    }
-    else {
-        str = newSVpv(buf, len);
-    }
-    
-    return str;
-}
+#define JsAppendCBuf(str, buf, len) ( str ? (sv_catpvn(str, buf, len), str) : newSVpv(buf, len) )
 
 static void
 json_eat_digits(json_context *ctx) {
@@ -605,7 +564,8 @@ json_parse_number(json_context *ctx, SV * tmp_str) {
 
     if (looking_at < '0' || looking_at > '9') {
         JSON_DEBUG("syntax error at byte %d", ctx->pos);
-        ctx->error = JSON_ERROR("syntax error at byte %d", ctx->pos);
+        ctx->error = JSON_ERROR("syntax error at byte %d, line %u, col %u", ctx->pos, ctx->line,
+            ctx->col);
         return (SV *)&PL_sv_undef;
     }
 
@@ -645,14 +605,7 @@ json_parse_number(json_context *ctx, SV * tmp_str) {
         }
     }
 
-    /* FIXME: return a number here instead of a string -- use Bigint if the number is big */
-    rv = _append_buffer(rv, ctx, start_pos, 0);
-
-    /*
-    fprintf(stderr, "IVSIZE=%d, UVSIZE=%d\n\n", IVSIZE, UVSIZE);
-    fprintf(stderr, "IV_DIG=%d, UV_DIG=%d, DBL_DIG=%d\n\n", IV_DIG, UV_DIG, DBL_DIG);
-    fprintf(stderr, "IV_MIN=%d, IV_MAX=%d, UV_MIN=%u, UV_MAX=%u\n\n", IV_MIN, IV_MAX, UV_MIN, UV_MAX);
-    */
+    rv = JsAppendBuf(rv, ctx, start_pos, 0);
 
     size = ctx->pos - start_pos;
     if (flags & (kParseNumberHaveDecimal | kParseNumberHaveExponent)) {
@@ -668,7 +621,6 @@ json_parse_number(json_context *ctx, SV * tmp_str) {
         }
     }
     else {
-        /* check size of string to see if we should trying creating a Math::BigInt obj */
         if (flags & kParseNumberHaveSign) {
             if (size - 1 >= IV_DIG) {
                 if (size - 1 == IV_DIG) {
@@ -751,8 +703,6 @@ json_parse_number(json_context *ctx, SV * tmp_str) {
         }
     }
 
-    /* sv_dump(rv); */
-
     return rv;
 }
 
@@ -762,8 +712,10 @@ json_parse_word(json_context *ctx, SV * tmp_str, int is_identifier) {
     UV looking_at;
     UV this_char;
     STRLEN start_pos = 0;
+    UV tmp_uv;
+    STRLEN tmp_len;
     
-    looking_at = json_peek_char(ctx);
+    looking_at = JsCurChar(ctx);
     if (looking_at >= '0' && looking_at <= '9') {
         JSON_DEBUG("json_parse_word(): starts with digit, so calling json_parse_number()");
         return json_parse_number(ctx, tmp_str);
@@ -776,7 +728,7 @@ json_parse_word(json_context *ctx, SV * tmp_str, int is_identifier) {
 
     start_pos = ctx->pos;
     while (ctx->pos < ctx->len) {
-        looking_at = json_peek_char(ctx);
+        looking_at = JsCurChar(ctx);
 
         JSON_DEBUG("looking at %04x", looking_at);
         
@@ -787,7 +739,7 @@ json_parse_word(json_context *ctx, SV * tmp_str, int is_identifier) {
              ) {
             JSON_DEBUG("json_parse_word(): got %04x at %d", looking_at, ctx->pos);
 
-            this_char = json_next_char(ctx);
+            this_char = JsNextCharWithArg(ctx, tmp_uv, tmp_len);
         }
         else {
             if (ctx->pos == start_pos) {
@@ -804,7 +756,7 @@ json_parse_word(json_context *ctx, SV * tmp_str, int is_identifier) {
                             return get_new_bool_obj(1);
                         }
                         else {
-                            return _append_c_buffer(rv, "1", 1);
+                            return JsAppendCBuf(rv, "1", 1);
                         }
                     }
                     else if (strnEQ("false", ctx->data + start_pos, ctx->pos - start_pos)) {
@@ -814,7 +766,7 @@ json_parse_word(json_context *ctx, SV * tmp_str, int is_identifier) {
                             return get_new_bool_obj(0);
                         }
                         else {
-                            return _append_c_buffer(rv, "0", 1);
+                            return JsAppendCBuf(rv, "0", 1);
                         }
                     }
                     else if (strnEQ("null", ctx->data + start_pos, ctx->pos - start_pos)) {
@@ -823,7 +775,7 @@ json_parse_word(json_context *ctx, SV * tmp_str, int is_identifier) {
                     }
                 }
                 JSON_DEBUG("returning from json_parse_word() at byte %d", ctx->pos);
-                return _append_buffer(rv, ctx, start_pos, 0);
+                return JsAppendBuf(rv, ctx, start_pos, 0);
             }
             break;
         }
@@ -889,17 +841,19 @@ json_parse_string(json_context *ctx, SV * tmp_str) {
     int i;
     U8 * tmp_buf = NULL;
     STRLEN max_str_size = 0;
+    UV tmp_uv;
+    STRLEN tmp_len;
 
     unicode_digits[4] = '\x00';
 
-    looking_at = json_peek_char(ctx);
+    looking_at = JsCurChar(ctx);
     if (looking_at != '"' && looking_at != '\'') {
         return (SV *)&PL_sv_undef;
     }
 
     boundary = looking_at;
-    this_uv = json_next_char(ctx);
-    next_uv = json_peek_char(ctx);
+    this_uv = JsNextCharWithArg(ctx, tmp_uv, tmp_len);
+    next_uv = JsCurChar(ctx);
     orig_start_pos = ctx->pos;
 
     /* FIXME: compute an estimate for the buffer size instead of passing zero */
@@ -921,15 +875,15 @@ json_parse_string(json_context *ctx, SV * tmp_str) {
     JSON_DEBUG("HERE, json_parse_string(), looking for boundary %04x", boundary);
     while (ctx->pos < ctx->len) {
         JSON_DEBUG("pos %d, looking at %04x", ctx->pos, next_uv);
-        this_uv = json_next_char(ctx);
+        this_uv = JsNextCharWithArg(ctx, tmp_uv, tmp_len);
 
         if (next_uv == boundary) {
             JSON_DEBUG("found boundary %04x", boundary);
             return rv;
         }
         else if (this_uv == '\\') {
-            this_uv = json_next_char(ctx);
-            next_uv = json_peek_char(ctx);
+            this_uv = JsNextCharWithArg(ctx, tmp_uv, tmp_len);
+            next_uv = JsCurChar(ctx);
             char_buf = NULL;
 
             switch (this_uv) {
@@ -977,7 +931,7 @@ json_parse_string(json_context *ctx, SV * tmp_str) {
                 switch (this_uv) {
                 case 'u':
                     for (i = 0; i < 4 && ctx->pos < ctx->len; i++) {
-                        this_uv = json_next_char(ctx);
+                        this_uv = JsNextCharWithArg(ctx, tmp_uv, tmp_len);
                         if ( (this_uv >= '0' && this_uv <= '9')
                             || (this_uv >= 'A' && this_uv <= 'F')
                             || (this_uv >= 'a' && this_uv <= 'f')
@@ -1007,7 +961,7 @@ json_parse_string(json_context *ctx, SV * tmp_str) {
 
                     JSON_DEBUG("found wide char %s\n", unicode_digits);
 
-                    next_uv = json_peek_char(ctx);
+                    next_uv = JsCurChar(ctx);
 
                     /* grok_hex() not available in perl 5.6 */
                     /* grok_len = 4;*/
@@ -1032,8 +986,8 @@ json_parse_string(json_context *ctx, SV * tmp_str) {
         else {
             tmp_buf = convert_uv_to_utf8(unicode_digits, this_uv);
             sv_catpvn(rv, (char *)unicode_digits, PTR2UV(tmp_buf) - PTR2UV(unicode_digits));
-            JSON_DEBUG("before json_peek_char()");
-            next_uv = json_peek_char(ctx);
+            JSON_DEBUG("before JsCurChar()");
+            next_uv = JsCurChar(ctx);
             JSON_DEBUG("after next_char(), got %04x", next_uv);
             
         }
@@ -1051,8 +1005,10 @@ json_parse_object(json_context *ctx) {
     SV * val;
     SV * tmp_str;
     int found_comma = 0;
+    UV tmp_uv;
+    STRLEN tmp_len;
 
-    looking_at = json_peek_char(ctx);
+    looking_at = JsCurChar(ctx);
     if (looking_at != '{') {
         JSON_DEBUG("json_parse_object: looking at %04x", looking_at);
         return (SV *)&PL_sv_undef;
@@ -1060,15 +1016,15 @@ json_parse_object(json_context *ctx) {
 
     hash = newHV();
 
-    json_next_char(ctx);
+    JsNextCharWithArg(ctx, tmp_uv, tmp_len);
 
     json_eat_whitespace(ctx, kCommasAreWhitespace);
     
-    looking_at = json_peek_char(ctx);
+    looking_at = JsCurChar(ctx);
 
     JSON_DEBUG("json_parse_object: looking at %04x", looking_at);
     if (looking_at == '}') {
-        json_next_char(ctx);
+        JsNextCharWithArg(ctx, tmp_uv, tmp_len);
         return (SV *)newRV_noinc((SV *)hash);
     }
 
@@ -1079,7 +1035,7 @@ json_parse_object(json_context *ctx) {
     /* sv_setpvn(key, "DEADBEEF", 8); */
 
     while (ctx->pos < ctx->len) {
-        looking_at = json_peek_char(ctx);
+        looking_at = JsCurChar(ctx);
         found_comma = 0;
 
         if (looking_at == '"' || looking_at == '\'') {
@@ -1094,16 +1050,17 @@ json_parse_object(json_context *ctx) {
 
         json_eat_whitespace(ctx, 0);
 
-        looking_at = json_peek_char(ctx);
+        looking_at = JsCurChar(ctx);
         
         JSON_DEBUG("looking at %04x at %d", looking_at, ctx->pos);
         if (looking_at != ':') {
             JSON_DEBUG("bad object at %d", ctx->pos);
-            ctx->error = JSON_ERROR("bad object at byte %d", ctx->pos);
+            ctx->error = JSON_ERROR("bad object at byte %d, line %u, col %u", ctx->pos,
+                ctx->line, ctx->col);
             SvREFCNT_dec(tmp_str);
             return (SV *)&PL_sv_undef;
         }
-        json_next_char(ctx);
+        JsNextCharWithArg(ctx, tmp_uv, tmp_len);
         
         json_eat_whitespace(ctx, 0);
         
@@ -1115,29 +1072,30 @@ json_parse_object(json_context *ctx) {
 
         json_eat_whitespace(ctx, 0);
 
-        looking_at = json_peek_char(ctx);
+        looking_at = JsCurChar(ctx);
         if (looking_at == ',') {
             found_comma = 1;
             json_eat_whitespace(ctx, kCommasAreWhitespace);
-            looking_at = json_peek_char(ctx);
+            looking_at = JsCurChar(ctx);
         }
         
         switch (looking_at) {
         case '}':
-            json_next_char(ctx);
+            JsNextCharWithArg(ctx, tmp_uv, tmp_len);
             SvREFCNT_dec(tmp_str);
             return (SV *)newRV_noinc((SV *)hash);
             break;
             
         case ',':
-            json_next_char(ctx);
+            JsNextCharWithArg(ctx, tmp_uv, tmp_len);
             json_eat_whitespace(ctx, 0);
             break;
 
         default:
             if (!found_comma) {
                 JSON_DEBUG("bad object at %d (%c)", ctx->pos, looking_at);
-                ctx->error = JSON_ERROR("bad object at byte %d (%04x)", ctx->pos, looking_at);
+                ctx->error = JSON_ERROR("bad object at byte %d (%04x), line %u, col %u",
+                    ctx->pos, looking_at, ctx->line, ctx->col);
                 SvREFCNT_dec(tmp_str);
                 return (SV *)&PL_sv_undef;
             }
@@ -1235,7 +1193,7 @@ json_parse_value(json_context *ctx, int is_identifier) {
         return (SV *)&PL_sv_undef;
     }
 
-    looking_at = json_peek_char(ctx);
+    looking_at = JsCurChar(ctx);
 
     JSON_DEBUG("json_parse_value: looking at %04x", looking_at);
 
@@ -1280,13 +1238,19 @@ parse_json(json_context *ctx) {
 }
 
 static SV *
-_private_from_json (SV * self, SV * data_sv, SV ** error_msg, int *throw_exception) {
+from_json (SV * self, SV * data_sv, SV ** error_msg, int *throw_exception) {
     STRLEN data_str_len;
     char * data_str;
     json_context ctx;
     SV * val;
     SV ** ptr;
     SV * self_hash = SvRV(self);
+    
+    /*
+    int is_utf8 = 0;
+    int is_utf_16be = 0;
+    int is_utf_32be = 0;
+    */
     
     data_str = SvPV(data_sv, data_str_len);
     if (!data_str) {
@@ -1300,12 +1264,37 @@ _private_from_json (SV * self, SV * data_sv, SV ** error_msg, int *throw_excepti
         return val;
     }
 
+    /*
+    if (data_str_len >= 2) {
+        if (data_str[0] != '\x00' && data_str[1] != '\x00') {
+            is_utf8 = 1;
+        }
+        else if (data_str_len >= 4) {
+            if (data_str[0] == '\x00') {
+                if (data_str[1] != '\x00'
+                    && data_str[2] == '\x00' && data_str[3] != '\x00') {
+                    is_utf_16be = 1;
+                }
+                else if (data_str[1] == '\x00' && data_str[2] == '\x00' && data_str[3] != '\x00') {
+                    is_utf_32be = 1;
+                }
+            }
+            else {
+                
+            }
+        }
+    }
+    */
+
+    bzero(&ctx, sizeof(json_context));
     ctx.len = data_str_len;
     ctx.data = data_str;
     ctx.pos = 0;
     ctx.error = (SV *)0;
     ctx.self = self;
     ctx.bad_char_policy = get_bad_char_policy((HV *)self_hash);
+    ctx.line = 1;
+    ctx.col = 0;
 
     ptr = hv_fetch((HV *)self_hash, "convert_bool", 12, 0);
     if (ptr && SvTRUE(*ptr)) {
@@ -1427,7 +1416,7 @@ fast_escape_json_str(self_context * self, SV * sv_str) {
 
         switch (this_uv) {
           case '\\':
-              sv_catpvn(rv, "\\", 2);
+              sv_catpvn(rv, "\\\\", 2);
               break;
           case '"':
               sv_catpvn(rv, "\\\"", 2);
@@ -1503,7 +1492,7 @@ encode_array(self_context * self, AV * array, int indent_level) {
     I32 num_spaces = 0;
     MAGIC * magic_ptr = NULL;
 
-    json_dump_sv((SV *)array, self->flags);
+    JsDumpSv((SV *)array, self->flags);
 
     if (self->flags & kPrettyPrint) {
         if (indent_level == 0) {
@@ -1541,7 +1530,7 @@ encode_array(self_context * self, AV * array, int indent_level) {
                 SvGETMAGIC(*element);
             }
 
-            tmp_sv = fast_to_json(self, *element, indent_level + 1);
+            tmp_sv = to_json(self, *element, indent_level + 1);
 
             if (self->flags & kPrettyPrint) {
                 sv_catpvn(rsv, "\n", 1);
@@ -1727,7 +1716,7 @@ encode_hash(self_context * self, HV * hash, int indent_level) {
         rsv = newSVpv("{", 1);
     }
 
-    json_dump_sv((SV *)hash, self->flags);
+    JsDumpSv((SV *)hash, self->flags);
 
     magic_ptr = mg_find((SV *)hash, PERL_MAGIC_tied);
     
@@ -1781,7 +1770,7 @@ encode_hash(self_context * self, HV * hash, int indent_level) {
 
         sv_catpvn(rsv, ":", 1);
 
-        tmp_sv = fast_to_json(self, val, indent_level + 2);
+        tmp_sv = to_json(self, val, indent_level + 2);
         if (self->error) {
             SvREFCNT_dec(tmp_sv);
             SvREFCNT_dec(rsv);
@@ -1804,132 +1793,8 @@ encode_hash(self_context * self, HV * hash, int indent_level) {
     return rsv;
 }
 
-/*
-static int
-_is_overloaded(SV * val, int * overloaded) {
-    dSP;
-    SV * test_val = NULL;
-    int count = 0;
-
-    JSON_DEBUG("HERE ====================");
-
-    ENTER;
-    SAVETMPS;
-    PUSHMARK(SP);
-    XPUSHs(val);
-    PUTBACK;
-
-    count = call_pv("overload::Overloaded", G_SCALAR);
-
-    JSON_DEBUG("got %d vals back", count);
-
-    SPAGAIN;
-    
-    test_val = POPs;
-
-    if (SvTRUE(test_val)) {
-        *overloaded = 1;
-    }
-    else {
-        *overloaded = 0;
-    }
-
-    PUTBACK;
-    FREETMPS;
-    LEAVE;
-}
-
-
-static void
-_is_overloaded_numeric(SV * val, int * overloaded) {
-    dSP;
-    SV * test_val = NULL;
-    int count = 0;
-
-    ENTER;
-    SAVETMPS;
-    PUSHMARK(SP);
-    XPUSHs(val);
-    XPUSHs(sv_2mortal(newSVpv("0+", 2)));
-    PUTBACK;
-
-    count = call_pv("overload::Method", G_SCALAR);
-
-    SPAGAIN;
-    
-    test_val = POPs;
-
-    if (SvTRUE(test_val)) {
-        *overloaded = 1;
-    }
-    else {
-        *overloaded = 0;
-    }
-
-    PUTBACK;
-    FREETMPS;
-    LEAVE;
-}
-
-static void
-_is_overloaded_string(SV * val, int * overloaded) {
-    dSP;
-    SV * test_val = NULL;
-    int count = 0;
-
-    ENTER;
-    SAVETMPS;
-    PUSHMARK(SP);
-    XPUSHs(val);
-    XPUSHs(sv_2mortal(newSVpv("\"\"", 2)));
-    PUTBACK;
-
-    count = call_pv("overload::Method", G_SCALAR);
-
-    SPAGAIN;
-    
-    test_val = POPs;
-
-    if (SvTRUE(test_val)) {
-        *overloaded = 1;
-    }
-    else {
-        *overloaded = 0;
-    }
-
-    PUTBACK;
-    FREETMPS;
-    LEAVE;
-}
-
-static int
-is_overloaded(SV * val) {
-    int overloaded = 0;
-    _is_overloaded(val, &overloaded);
-    
-    return overloaded;
-}
-
-static int
-is_overloaded_as_number(SV * val) {
-    int overloaded = 0;
-    _is_overloaded_numeric(val, &overloaded);
-    
-    return overloaded;
-}
-
-static int
-is_overloaded_as_string(SV * val) {
-    int overloaded = 0;
-    _is_overloaded_string(val, &overloaded);
-
-    return overloaded;
-}
-*/
-
-
 static SV *
-fast_to_json(self_context * self, SV * data_ref, int indent_level) {
+to_json(self_context * self, SV * data_ref, int indent_level) {
     SV * data;
     int type;
     SV * rsv = newSVpv("", 0);
@@ -1939,9 +1804,9 @@ fast_to_json(self_context * self, SV * data_ref, int indent_level) {
     STRLEN start = 0;
     STRLEN len = 0;
 
-    JSON_DEBUG("fast_to_json() called");
+    JSON_DEBUG("to_json() called");
 
-    json_dump_sv(data_ref, self->flags);
+    JsDumpSv(data_ref, self->flags);
 
     if (! SvROK(data_ref)) {
         JSON_DEBUG("not a reference");
@@ -1959,10 +1824,10 @@ fast_to_json(self_context * self, SV * data_ref, int indent_level) {
 
               case SVt_IV:
               case SVt_NV:
-                  before_len = get_sv_length(rsv);
+                  before_len = JsSvLen(rsv);
                   sv_catsv(rsv, data);
 
-                  if (get_sv_length(rsv) == before_len) {
+                  if (JsSvLen(rsv) == before_len) {
                       sv_catpvn(rsv, "\"\"", 2);
                   }
                   return rsv;
@@ -1986,45 +1851,6 @@ fast_to_json(self_context * self, SV * data_ref, int indent_level) {
                   return rsv;
                   break;
 
-                  /*
-              case SVt_PVIV:
-                  before_len = get_sv_length(rsv);
-                  
-                  if (SvIOK(data)) {
-                      sv_catsv(rsv, data);
-                      if (get_sv_length(rsv) == before_len) {
-                          sv_catpvn(rsv, "\"\"", 2);
-                      }
-                  }
-                  else {
-                      sv_catsv(rsv, data);
-                      tmp = rsv;
-                      rsv = fast_escape_json_str(self, tmp);
-                      SvREFCNT_dec(tmp);
-                  }
-
-                  return rsv;
-                  break;
-
-              case SVt_PVNV:
-                  before_len = get_sv_length(rsv);
-                  if (SvNOK(data)) {
-                      sv_catsv(rsv, data);
-                      if (get_sv_length(rsv) == before_len) {
-                          sv_catpvn(rsv, "\"\"", 2);
-                      }
-                  }
-                  else {
-                      sv_catsv(rsv, data);
-                      tmp = rsv;
-                      rsv = fast_escape_json_str(self, tmp);
-                      SvREFCNT_dec(tmp);
-                  }
-
-                  return rsv;
-                  break;
-                  */
-
               case SVt_PVLV:
                   sv_catsv(rsv, data);
                   tmp = rsv;
@@ -2032,17 +1858,6 @@ fast_to_json(self_context * self, SV * data_ref, int indent_level) {
                   SvREFCNT_dec(tmp);
                   return rsv;
                   break;
-
-                  /*
-                  before_len = get_sv_length(rsv);
-                  sv_catsv(rsv, data);
-                  if (get_sv_length(rsv) == before_len) {
-                      sv_catpvn(rsv, "\"\"", 2);
-                  }
-
-                  return rsv;
-                  break;
-                  */
 
               default:
                   /* now what? */
@@ -2119,9 +1934,9 @@ fast_to_json(self_context * self, SV * data_ref, int indent_level) {
 
       case SVt_IV:
       case SVt_NV:
-          before_len = get_sv_length(rsv);
+          before_len = JsSvLen(rsv);
           sv_catsv(rsv, data);
-          if (get_sv_length(rsv) == before_len) {
+          if (JsSvLen(rsv) == before_len) {
               sv_catpvn(rsv, "\"\"", 2);
           }
 
@@ -2145,9 +1960,9 @@ fast_to_json(self_context * self, SV * data_ref, int indent_level) {
           return rsv;
           break;
           /*
-          before_len = get_sv_length(rsv);
+          before_len = JsSvLen(rsv);
           sv_catsv(rsv, data);
-          if (get_sv_length(rsv) == before_len) {
+          if (JsSvLen(rsv) == before_len) {
               sv_catpvn(rsv, "\"\"", 2);
           }
           return rsv;
@@ -2267,7 +2082,7 @@ _xs_from_json(self, data, error_msg_ref)
 
     CODE:
     error_msg = (SV *)&PL_sv_undef;
-    rv = _private_from_json(self, data, &error_msg, &throw_exception);
+    rv = from_json(self, data, &error_msg, &throw_exception);
     if (SvOK(error_msg) && SvROK(error_msg_ref)) {
         passed_error_msg_sv = SvRV(error_msg_ref);
         sv_setsv(passed_error_msg_sv, error_msg);
@@ -2292,7 +2107,7 @@ _xs_to_json(self, data, error_msg_ref)
 
      CODE:
      setup_self_context(self, &self_context);
-     rv = fast_to_json(&self_context, data, indent_level);
+     rv = to_json(&self_context, data, indent_level);
      if (self_context.error) {
          sv_setsv(SvRV(error_msg_ref), self_context.error);
      }
@@ -2556,50 +2371,4 @@ bytes_to_code_points(self, bytes)
     OUTPUT:
     RETVAL
 
-SV *
-make_data()
-    PREINIT:
-    SV * key = newSV(0);
-    HV * hash = newHV();
-    SV * val;
-    HV * hash2;
-    HV * hash3;
-
-    CODE:
-    sv_setpvn(key, "var1", 4);
-    val = &PL_sv_undef;
-    hv_store_ent(hash, key, val, 0);
-
-    sv_setpvn(key, "var2", 4);
-    val = newSVpv("val1", 4);
-    hv_store_ent(hash, key, val, 0);
-
-    hash2 = newHV();
-    sv_setpvn(key, "var3", 4);
-    val = newSVpv("val3", 4);
-    hv_store_ent(hash2, key, val, 0);
-
-    hash3 = newHV();
-    sv_setpvn(key, "var4", 4);
-    hv_store_ent(hash2, key, (SV *)newRV_noinc((SV *)hash3), 0);
-    sv_setpvn(key, "var5", 4);
-    hv_store_ent(hash3, key, &PL_sv_undef, 0);
-
-    hv_store_ent(hash, key, (SV *)newRV_noinc((SV *)hash2), 0);
-    
-    SvREFCNT_dec(key);
-
-    RETVAL = (SV *)newRV_noinc((SV *)hash);
-    OUTPUT:
-    RETVAL
-
-
-SV *
-makeundef(self)
- SV * self
-
-  CODE:
-  RETVAL = &PL_sv_undef;
-  OUTPUT:
-  RETVAL
 

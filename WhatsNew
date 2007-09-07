@@ -1,3 +1,22 @@
+Version 0.14
+    * Fixed problem with escaping '\' when decoding
+    * Made some optimizations
+    * Now recognize more whitespace characters
+      The full list of whitespace characters recognized is:
+          case 0x20:   /* space */
+          case 0x09:   /* tab */
+          case 0x0b:   /* vertical tab */
+          case 0x0c:   /* form feed */
+          case 0x0d:   /* carriage return */
+          case 0x00a0: /* NSBP - non-breaking space */
+          case 0x200b: /* ZWSP - zero width space */
+          case 0x2029: /* PS - paragraph separator */
+          case 0x2060: /* WJ - word joiner */
+          case 0x0a:   /* newline */
+          case 0x0085: /* NEL - next line */
+          case 0x2028: /* LS - line separator */
+
+
 Version 0.13
     * Fixed problem where array elements may be missing when the
       "pretty" option is turned on

@@ -8,7 +8,7 @@ use Test;
 
 # main
 {
-    BEGIN { plan tests => 13 }
+    BEGIN { plan tests => 14 }
 
     use JSON::DWIW;
 
@@ -93,6 +93,12 @@ use Test;
     $data = { stuff => "Don's test string" };
     $json_str = $json_obj->to_json($data);
     ok($json_str eq q{{"stuff":"Don's test string"}});
+
+    $data = { stuff => "http://example.com/" };
+    $json_str = $json_obj->to_json($data);
+    $json_str = $json_obj->to_json({ test => $json_str });
+    ok($json_str eq '{"test":"{\\"stuff\\":\\"http:\\\\\\/\\\\\\/example.com\\\\\\/\\"}"}');
+    
 
 }
 

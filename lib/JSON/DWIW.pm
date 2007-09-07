@@ -3,8 +3,11 @@
 #
 # Copyright (c) 2007 Don Owens <don@regexguy.com>.  All rights reserved.
 #
-# This is free software; you can redistribute it and/or modify it
-# under the same terms as Perl itself.  See perlartistic.
+# This is free software; you can redistribute it and/or modify it under
+# the Perl Artistic license.  You should have received a copy of the
+# Artistic license with this distribution, in the file named
+# "Artistic".  You may also obtain a copy from
+# http://regexguy.com/license/Artistic
 #
 # This program is distributed in the hope that it will be
 # useful, but WITHOUT ANY WARRANTY; without even the implied
@@ -130,7 +133,7 @@ package JSON::DWIW;
 
 Exporter::export_ok_tags('all');
 
-our $VERSION = '0.13';
+our $VERSION = '0.14';
 
 {
     package JSON::DWIW::Exporter;
@@ -315,7 +318,7 @@ sub to_json {
     }
 
     my $error_msg;
-    my $str = _xs_to_json($self, $data, \$error_msg); # call as non-OO for speed, but pass $self
+    my $str = _xs_to_json($self, $data, \$error_msg);
     if (defined($error_msg) and $self->{use_exceptions}) {
         die $error_msg;
     }
@@ -512,7 +515,7 @@ PURPOSE.
 
 =head1 VERSION
 
-0.13
+0.14
 
 =cut
 
