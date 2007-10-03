@@ -7,6 +7,9 @@ SYNOPSIS
      my $data = $json_obj->from_json($json_str);
      my $str = $json_obj->to_json($data);
 
+     my $data = $json_obj->from_json_file($file)
+     my $ok = $json_obj->to_json_file($data, $file);
+
      my $data = JSON::DWIW->from_json($json_str);
      my $str = JSON:DWIW->to_json($data);
 
@@ -130,7 +133,7 @@ METHODS
      These objects are recognized by the to_json() method, so they
      will be output as "true" or "false" instead of "1" or "0".
 
-  to_json($data)
+  to_json
      Returns the JSON representation of $data (arbitrary
      datastructure).  See http://www.json.org/ for details.
 
@@ -149,7 +152,7 @@ METHODS
 
      Aliases: toJson, toJSON, objToJson
 
-  my ($data, $error_msg) = from_json($json_str)
+  from_json
      Returns the Perl data structure for the given JSON string.  The
      value for true becomes 1, false becomes 0, and null gets
      converted to undef.
@@ -168,6 +171,20 @@ METHODS
          my $data = from_json($json_str, { use_exceptions => 1 })
 
      Aliases: fromJson, fromJSON, jsonToObj
+
+  from_json_file
+     Returns the Perl data structure for the JSON object in the given
+     file.  Currently, this method slurps in the whole file, then
+     parses it.
+
+    my ($data, $error_msg) = $json->from_json_file($file, \%options)
+
+  to_json_file
+     Converts $data to JSON and writes the result to the file $file.
+     Currently, this is simply a convenience routine that converts
+     the data to a JSON string and then writes it to the file.
+
+    my ($ok, $error) = $json->to_json_file($data, $file, \%options);
 
   true()
      Returns an object that will get output as a true value when encoding to JSON.
@@ -249,5 +266,5 @@ SEE ALSO
      L<JSON::Syck> (included in L<YAML::Syck>)
 
 VERSION
-    0.14
+    0.15
 

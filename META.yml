@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:                JSON-DWIW
-version:             0.14
+version:             0.15
 abstract:            JSON converter that does what I want
 license:             ~
 generated_by:        ExtUtils::MakeMaker version 6.36

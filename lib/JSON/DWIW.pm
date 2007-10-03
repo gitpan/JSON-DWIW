@@ -27,6 +27,9 @@ JSON::DWIW - JSON converter that Does What I Want
  my $data = $json_obj->from_json($json_str);
  my $str = $json_obj->to_json($data);
 
+ my $data = $json_obj->from_json_file($file)
+ my $ok = $json_obj->to_json_file($data, $file);
+
  my $data = JSON::DWIW->from_json($json_str);
  my $str = JSON:DWIW->to_json($data);
 
@@ -124,16 +127,15 @@ use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 
 require Exporter;
 require DynaLoader;
-# @ISA = qw(Exporter DynaLoader);
 @ISA = qw(DynaLoader);
-package JSON::DWIW;
+
 @EXPORT = ( );
 @EXPORT_OK = ();
 %EXPORT_TAGS = (all => [ 'to_json', 'from_json' ]);
 
 Exporter::export_ok_tags('all');
 
-our $VERSION = '0.14';
+our $VERSION = '0.15';
 
 {
     package JSON::DWIW::Exporter;
@@ -161,10 +163,7 @@ sub import {
     JSON::DWIW::Exporter::import(@_);
 }
 
-package JSON::DWIW;
-bootstrap JSON::DWIW $VERSION;
-
-package JSON::DWIW;
+JSON::DWIW->bootstrap($VERSION);
 
 {
     # workaround for weird importing bug on some installations
@@ -269,7 +268,7 @@ sub new {
 
 =pod
 
-=head2 to_json($data)
+=head2 to_json
 
  Returns the JSON representation of $data (arbitrary
  datastructure).  See http://www.json.org/ for details.
@@ -334,7 +333,7 @@ sub to_json {
 
 =pod
 
-=head2 my ($data, $error_msg) = from_json($json_str)
+=head2 from_json
 
  Returns the Perl data structure for the given JSON string.  The
  value for true becomes 1, false becomes 0, and null gets
@@ -398,6 +397,152 @@ sub from_json {
     *jsonToObj = \&from_json;
     *fromJson = \&from_json;
     *fromJSON = \&from_json;
+}
+
+=pod
+
+=head2 from_json_file
+
+ Returns the Perl data structure for the JSON object in the given
+ file.  Currently, this method slurps in the whole file, then
+ parses it.
+
+my ($data, $error_msg) = $json->from_json_file($file, \%options)
+
+=cut
+sub from_json_file {
+    my $proto = shift;
+    my $file;
+    my $self;
+        
+    if (UNIVERSAL::isa($proto, 'JSON::DWIW')) {
+        $file = shift;
+        my $options = shift;
+        if ($options) {
+            if (ref($proto) and $proto->isa('HASH')) {
+                if (UNIVERSAL::isa($options, 'HASH')) {
+                    $options = { %$proto, %$options };
+                }
+            }
+
+            $self = $proto->new($options, @_);
+        }
+        else {
+            $self = ref($proto) ? $proto : $proto->new(@_);
+        }
+    }
+    else {
+        $file = $proto;
+        $self = JSON::DWIW->new(@_);
+    }
+
+    my $in_fh;
+    unless (open($in_fh, '<', $file)) {
+        my $msg = "JSON::DWIW v$VERSION - couldn't open input file $file";
+        if ($self->{use_exceptions}) {
+            die $msg;
+        } else {
+            return wantarray ? ( undef, $msg ) : undef;
+        }
+    }
+
+    my $json;
+    {
+        local($/);
+        $json = <$in_fh>;
+    }
+    close $in_fh;
+
+    my $error_msg;
+    my $data = _xs_from_json($self, $json, \$error_msg);
+    if (defined($error_msg) and $self->{use_exceptions}) {
+        die $error_msg;
+    }
+
+    return wantarray ? ($data, $error_msg) : $data;
+}
+
+=pod
+
+=head2 to_json_file
+
+ Converts $data to JSON and writes the result to the file $file.
+ Currently, this is simply a convenience routine that converts
+ the data to a JSON string and then writes it to the file.
+
+my ($ok, $error) = $json->to_json_file($data, $file, \%options);
+
+=cut
+sub to_json_file {
+    my $proto = shift;
+    my $file;
+    my $data;
+    my $self;
+        
+    if (UNIVERSAL::isa($proto, 'JSON::DWIW')) {
+        $data = shift;
+        $file = shift;
+        my $options = shift;
+        if ($options) {
+            if (ref($proto) and $proto->isa('HASH')) {
+                if (UNIVERSAL::isa($options, 'HASH')) {
+                    $options = { %$proto, %$options };
+                }
+            }
+
+            $self = $proto->new($options, @_);
+        }
+        else {
+            $self = ref($proto) ? $proto : $proto->new(@_);
+        }
+    }
+    else {
+        $data = $proto;
+        $file = shift;
+        $self = JSON::DWIW->new(@_);
+    }
+
+    my $out_fh;
+    unless (open($out_fh, '>', $file)) {
+        my $msg = "JSON::DWIW v$VERSION - couldn't open output file $file";
+        if ($self->{use_exceptions}) {
+            die $msg;
+        } else {
+            return wantarray ? ( undef, $msg ) : undef;
+        }
+    }
+
+    my $error_msg;
+    my $str = _xs_to_json($self, $data, \$error_msg);
+    if (defined($error_msg) and $self->{use_exceptions}) {
+        die $error_msg;
+    }
+
+    if ($error_msg) {
+        return wantarray ? (undef, $error_msg) : undef;
+    }
+
+    print $out_fh $str;
+    close $out_fh;
+
+#     if (_has_mmap()) {
+#         print "*** has mmap\n";
+#     }
+    
+    return wantarray ? (1, $error_msg) : 1;
+}
+
+sub parse_mmap_file {
+    my $proto = shift;
+    my $file = shift;
+
+    my $error_msg;
+    my $self = $proto->new;
+
+    my $data = _parse_mmap_file($self, $file, \$error_msg);
+    if ($error_msg) {
+        return wantarray ? (undef, $error_msg) : undef;
+    }
 }
 
 =pod
@@ -515,7 +660,7 @@ PURPOSE.
 
 =head1 VERSION
 
-0.14
+0.15
 
 =cut
 

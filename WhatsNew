@@ -1,3 +1,13 @@
+Version 0.15
+    * Added from_json_file() method
+    * Added to_json_file() method
+    * Fixed bug where, in Perl version >= 5.8, hash keys with
+      multibyte utf-8 chars were not handled correctly
+    * Changed error messages to include the module name and version,
+      fixed error messages that did not specify where the error
+      occurred, and added line number, character offset, and character
+      column to parse error messages.
+
 Version 0.14
     * Fixed problem with escaping '\' when decoding
     * Made some optimizations
