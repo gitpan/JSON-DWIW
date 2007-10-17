@@ -1,3 +1,8 @@
+Version 0.16
+    * Added get_stats() method
+    * Added get_error_string() method
+    * Added get_error_data() method
+
 Version 0.15
     * Added from_json_file() method
     * Added to_json_file() method

@@ -128,6 +128,7 @@ typedef struct {
     char * data;
     STRLEN pos;
     SV * error;
+    SV * error_data;
     SV * self;
     int flags;
     UV bad_char_policy;
@@ -137,18 +138,68 @@ typedef struct {
     unsigned int char_col;
     UV cur_char;
     unsigned int cur_char_len;
+
     unsigned int error_pos;
     unsigned int error_char_pos;
     unsigned int error_line;
     unsigned int error_col;
     unsigned int error_char_col;
+    
+    unsigned int string_count;
+    unsigned int longest_string_bytes;
+    unsigned int longest_string_chars;
+    unsigned int number_count;
+    unsigned int bool_count;
+    unsigned int null_count;
+    unsigned int hash_count;
+    unsigned int array_count;
+    unsigned int deepest_level;
 } json_context;
+
+/* a single set of flags for json_context and self_context */
+#define kUseExceptions 1
+#define kDumpVars (1 << 1)
+#define kPrettyPrint (1 << 2)
+#define kEscapeMultiByte (1 << 3)
+#define kConvertBool (1 << 4)
+
+#define kBadCharError 0
+#define kBadCharConvert 1
+#define kBadCharPassThrough 2
+
+/* for converting to JSON */
+typedef struct {
+    SV * error;
+    SV * error_data;
+    int bare_keys;
+    UV bad_char_policy;
+    int use_exceptions;
+    int flags;
+
+    unsigned int string_count;
+    unsigned int longest_string_bytes;
+    unsigned int longest_string_chars;
+    unsigned int number_count;
+    unsigned int bool_count;
+    unsigned int null_count;
+    unsigned int hash_count;
+    unsigned int array_count;
+    unsigned int deepest_level;
+} self_context;
+
 
 static SV *
 vjson_parse_error(json_context * ctx, const char * file, unsigned int line_num, const char * fmt,
     va_list ap) {
-    SV * error = newSVpv("", 0);
+    SV * error = Nullsv;
     bool junk = 0;
+    HV * error_data;
+
+    if (ctx->error) {
+        return ctx->error;
+    }
+
+    error = newSVpv("", 0);
 
     sv_setpvf(error, "%s v%s ", MOD_NAME, MOD_VERSION);
     if (file && line_num) {
@@ -156,7 +207,7 @@ vjson_parse_error(json_context * ctx, const char * file, unsigned int line_num, 
     }
     
     sv_catpvn(error, " - ", 3);
-    sv_vcatpvfn(error, fmt, strlen(fmt), &ap, NULL, 0, &junk);
+    sv_vcatpvfn(error, fmt, strlen(fmt), &ap, (SV **)0, 0, &junk);
     sv_catpvf(error, " - at char %u (byte %u), line %u, col %u (byte col %u)", ctx->char_pos,
         ctx->pos, ctx->line, ctx->char_col, ctx->col);
 
@@ -164,6 +215,18 @@ vjson_parse_error(json_context * ctx, const char * file, unsigned int line_num, 
     ctx->error_line = ctx->line;
     ctx->error_col = ctx->col;
     ctx->error_char_col = ctx->char_col;
+
+    error_data = newHV();
+    ctx->error_data = newRV_noinc((SV *)error_data);
+
+    hv_store(error_data, "version", 7, newSVpvf("%s", MOD_VERSION), 0);
+    hv_store(error_data, "char", 4, newSVuv(ctx->char_pos), 0);
+    hv_store(error_data, "byte", 4, newSVuv(ctx->pos), 0);
+    hv_store(error_data, "line", 4, newSVuv(ctx->line), 0);
+    hv_store(error_data, "col", 3, newSVuv(ctx->char_col), 0);
+    hv_store(error_data, "byte_col", 8, newSVuv(ctx->col), 0);
+
+    ctx->error = error;
     
     return error;
 }
@@ -182,24 +245,30 @@ json_parse_error(json_context * ctx, const char * file, unsigned int line_num,
 }
 
 static SV *
-vjson_encode_error(const char * file, int line_num, const char * fmt, va_list ap) {
+vjson_encode_error(self_context * ctx, const char * file, int line_num, const char * fmt, va_list ap) {
     SV * error = newSVpv("", 0);
     bool junk = 0;
+    HV * error_data = Nullhv;
 
     sv_setpvf(error, "JSON::DWIW v%s - ", MOD_VERSION);
 
-    sv_vcatpvfn(error, fmt, strlen(fmt), &ap, NULL, 0, &junk);
+    sv_vcatpvfn(error, fmt, strlen(fmt), &ap, (SV **)0, 0, &junk);
+
+    error_data = newHV();
+    ctx->error_data = newRV_noinc((SV *)error_data);
+
+    hv_store(error_data, "version", 7, newSVpvf("%s", MOD_VERSION), 0);
 
     return error;
 }
 
 static SV *
-json_encode_error(const char * file, int line_num, const char * fmt, ...) {
+json_encode_error(self_context * ctx, const char * file, int line_num, const char * fmt, ...) {
     va_list ap;
     SV * error;
     
     va_start(ap, fmt);
-    error = vjson_encode_error(file, line_num, fmt, ap);
+    error = vjson_encode_error(ctx, file, line_num, fmt, ap);
     va_end(ap);
 
     return error;
@@ -238,7 +307,7 @@ build_parse_error_str(ctx, ...) {
 */
 
 #define JSON_PARSE_ERROR(ctx, ...) json_parse_error(ctx, __FILE__, __LINE__, __VA__ARGS__)
-#define JSON_ENCODE_ERROR(...) json_encode_error(__FILE__, __LINE__, __VA_ARGS__)
+#define JSON_ENCODE_ERROR(ctx, ...) json_encode_error(ctx, __FILE__, __LINE__, __VA_ARGS__)
 #else
 
 /*
@@ -248,7 +317,7 @@ build_parse_error_str(ctx, ...) {
 #define JSON_PARSE_ERROR(ctx, ...) json_parse_error(ctx, NULL, 0, __VA_ARGS__)
 #endif
 
-#define JSON_ENCODE_ERROR(...) json_encode_error(NULL, 0, __VA_ARGS__)
+#define JSON_ENCODE_ERROR(ctx, ...) json_encode_error(ctx, NULL, 0, __VA_ARGS__)
 
 #else
 
@@ -265,12 +334,12 @@ JSON_PARSE_ERROR(json_context * ctx, const char * fmt, ...) {
 }
 
 static SV *
-JSON_ENCODE_ERROR(const char * fmt, ...) {
+JSON_ENCODE_ERROR(self_context * ctx, const char * fmt, ...) {
     va_list ap;
     SV * error;
 
     va_start(ap, fmt);
-    error = vjson_encode_error(NULL, 0, fmt, ap);
+    error = vjson_encode_error(ctx, NULL, 0, fmt, ap);
     va_end(ap);
 
     return error;
@@ -293,6 +362,9 @@ JSON_ERROR(char * fmt, ...) {
 
 #endif
 
+#define UPDATE_CUR_LEVEL(ctx, cur_level) (cur_level > ctx->deepest_level ? (ctx->deepest_level = cur_level) : cur_level )
+
+#if DEBUG_UTF8
 static STRLEN
 print_hex(FILE * fp, const unsigned char * buf, STRLEN buf_len) {
     STRLEN i;
@@ -301,7 +373,7 @@ print_hex(FILE * fp, const unsigned char * buf, STRLEN buf_len) {
     for (i = 0; i < buf_len; i++) {
         c = buf[i];
         if (c & 0x80) {
-            fprintf(fp, "\\x{%02x}", c);
+            fprintf(fp, "\\x{%02"UVxf"}", c);
         }
         else {
             fwrite(&buf[i], 1, 1, fp);
@@ -320,29 +392,10 @@ print_hex_line(FILE * fp, const unsigned char * buf, STRLEN buf_len) {
 
     return i;
 }
+#endif
 
-/* a single set of flags for json_context and self_context */
-#define kUseExceptions 1
-#define kDumpVars (1 << 1)
-#define kPrettyPrint (1 << 2)
-#define kEscapeMultiByte (1 << 3)
-#define kConvertBool (1 << 4)
-
-#define kBadCharError 0
-#define kBadCharConvert 1
-#define kBadCharPassThrough 2
-
-/* for converting to JSON */
-typedef struct {
-    SV * error;
-    int bare_keys;
-    UV bad_char_policy;
-    int use_exceptions;
-    int flags;
-} self_context;
-
-static SV * json_parse_value(json_context *ctx, int is_identifier);
-static SV * to_json(self_context * self, SV * data_ref, int indent_level);
+static SV * json_parse_value(json_context *ctx, int is_identifier, unsigned int cur_level);
+static SV * to_json(self_context * self, SV * data_ref, int indent_level, unsigned int cur_level);
 
 static UV
 get_bad_char_policy(HV * self_hash) {
@@ -540,9 +593,6 @@ get_new_bool_obj(int bool_val) {
 
 #define JsDumpSv(sv, flags) ( (flags & kDumpVars) ? sv_dump(sv) : 0 )
 
-#define json_next_byte(ctx) ( (ctx)->pos >= (ctx)->len ? 0 : (ctx)->data[(ctx)->pos++] )
-#define json_peek_byte(ctx) ( (ctx)->pos >= (ctx)->len ? 0 : (ctx)->data[(ctx)->pos] )
-
 #ifdef IS_PERL_5_6
 #define convert_utf8_to_uv(utf8, len_ptr) utf8_to_uv_simple(utf8, len_ptr)
 #else
@@ -568,7 +618,7 @@ json_next_multibyte_char(json_context * ctx) {
     UV uv = 0;
     STRLEN len = 0;
 
-    /* FIXME: should use is_utf8_char() so we know wether we got a NULL char back or an error */
+    /* FIXME: should use is_utf8_char() so we know whether we got a NULL char back or an error */
     uv = convert_utf8_to_uv((unsigned char *)&(ctx->data[ctx->pos]), &len);
     ctx->pos += len;
     ctx->col += len;
@@ -709,10 +759,10 @@ static void
 json_eat_digits(json_context *ctx) {
     unsigned char looking_at;
 
-    looking_at = json_peek_byte(ctx);
+    looking_at = JsCurChar(ctx);
     while (ctx->pos < ctx->len && looking_at >= '0' && looking_at <= '9') {
-        json_next_byte(ctx);
-        looking_at = json_peek_byte(ctx);
+        JsNextChar(ctx);
+        looking_at = JsCurChar(ctx);
     }
 }
 
@@ -735,10 +785,10 @@ json_parse_number(json_context *ctx, SV * tmp_str) {
     /* char uv_str[(IV_DIG > UV_DIG ? IV_DIG : UV_DIG) + 1]; */
     STRLEN size = 0;
     
-    looking_at = json_peek_byte(ctx);
+    looking_at = JsNextChar(ctx);
     if (looking_at == '-') {
-        json_next_byte(ctx);
-        looking_at = json_peek_byte(ctx);
+        JsNextChar(ctx);
+        looking_at = JsNextChar(ctx);
         flags |= kParseNumberHaveSign;
     }
 
@@ -748,6 +798,8 @@ json_parse_number(json_context *ctx, SV * tmp_str) {
         return (SV *)&PL_sv_undef;
     }
 
+    ctx->number_count++;
+
     json_eat_digits(ctx);
 
     if (tmp_str) {
@@ -756,12 +808,12 @@ json_parse_number(json_context *ctx, SV * tmp_str) {
     }
     
     if (ctx->pos < ctx->len) {
-        looking_at = json_peek_byte(ctx);
+        looking_at = JsCurChar(ctx);
 
         if (looking_at == '.') {
-            json_next_byte(ctx);
+            JsNextChar(ctx);
             json_eat_digits(ctx);
-            looking_at = json_peek_byte(ctx);
+            looking_at = JsCurChar(ctx);
             flags |= kParseNumberHaveDecimal;
         }
 
@@ -769,16 +821,16 @@ json_parse_number(json_context *ctx, SV * tmp_str) {
             if (looking_at == 'E' || looking_at == 'e') {
                 /* exponential notation */
                 flags |= kParseNumberHaveExponent;
-                json_next_byte(ctx);
+                JsNextChar(ctx);
                 if (ctx->pos < ctx->len) {
-                    looking_at = json_peek_byte(ctx);
+                    looking_at = JsCurChar(ctx);
                     if (looking_at == '+' || looking_at == '-') {
-                        json_next_byte(ctx);
-                        looking_at = json_peek_byte(ctx);
+                        JsNextChar(ctx);
+                        looking_at = JsCurChar(ctx);
                     }
                     
                     json_eat_digits(ctx);
-                    looking_at = json_peek_byte(ctx);
+                    looking_at = JsCurChar(ctx);
                 }
             }
         }
@@ -931,6 +983,8 @@ json_parse_word(json_context *ctx, SV * tmp_str, int is_identifier) {
                 UNLESS (is_identifier) {
                     if (strnEQ("true", ctx->data + start_pos, ctx->pos - start_pos)) {
                         JSON_DEBUG("returning true from json_parse_word() at byte %d", ctx->pos);
+
+                        ctx->bool_count++;
                         if (ctx->flags & kConvertBool) {
                             return get_new_bool_obj(1);
                         }
@@ -941,6 +995,7 @@ json_parse_word(json_context *ctx, SV * tmp_str, int is_identifier) {
                     else if (strnEQ("false", ctx->data + start_pos, ctx->pos - start_pos)) {
                         JSON_DEBUG("returning false from json_parse_word() at byte %d", ctx->pos);
 
+                        ctx->bool_count++;
                        if (ctx->flags & kConvertBool) {
                             return get_new_bool_obj(0);
                         }
@@ -950,10 +1005,14 @@ json_parse_word(json_context *ctx, SV * tmp_str, int is_identifier) {
                     }
                     else if (strnEQ("null", ctx->data + start_pos, ctx->pos - start_pos)) {
                         JSON_DEBUG("returning undef from json_parse_word() at byte %d", ctx->pos);
+
+                        ctx->null_count++;
                         return (SV *)newSV(0);
                     }
                 }
                 JSON_DEBUG("returning from json_parse_word() at byte %d", ctx->pos);
+
+                ctx->string_count++;
                 return JsAppendBuf(rv, ctx, start_pos, 0);
             }
             break;
@@ -1022,6 +1081,7 @@ json_parse_string(json_context *ctx, SV * tmp_str) {
     STRLEN max_str_size = 0;
     UV tmp_uv;
     STRLEN tmp_len;
+    unsigned int start_char_pos = 0;
 
     unicode_digits[4] = '\x00';
 
@@ -1030,10 +1090,14 @@ json_parse_string(json_context *ctx, SV * tmp_str) {
         return (SV *)&PL_sv_undef;
     }
 
+    ctx->string_count++;
+
     boundary = looking_at;
     this_uv = JsNextCharWithArg(ctx, tmp_uv, tmp_len);
     next_uv = JsCurChar(ctx);
     orig_start_pos = ctx->pos;
+
+    start_char_pos = ctx->char_pos;
 
     /* FIXME: compute an estimate for the buffer size instead of passing zero */
     max_str_size = find_length_of_string(ctx, boundary);
@@ -1058,6 +1122,16 @@ json_parse_string(json_context *ctx, SV * tmp_str) {
 
         if (next_uv == boundary) {
             JSON_DEBUG("found boundary %04x", boundary);
+
+            tmp_len = SvCUR(rv);
+            if (tmp_len > ctx->longest_string_bytes) {
+                ctx->longest_string_bytes = tmp_len;
+            }
+            tmp_len = ctx->char_pos - start_char_pos - 1;
+            if (tmp_len > ctx->longest_string_chars) {
+                ctx->longest_string_chars = tmp_len;
+            }
+
             return rv;
         }
         else if (this_uv == '\\') {
@@ -1152,7 +1226,7 @@ json_parse_string(json_context *ctx, SV * tmp_str) {
                     /* grok_len = 4;*/
                     /* this_uv = grok_hex((char *)unicode_digits, &grok_len, &grok_flags, NULL); */
                     
-                    sscanf((char *)unicode_digits, "%04x", &this_uv);
+                    sscanf((char *)unicode_digits, "%04"UVxf, &this_uv);
 
                     tmp_buf = convert_uv_to_utf8(unicode_digits, this_uv);
                     UNLESS (SvUTF8(rv)) {
@@ -1183,11 +1257,11 @@ json_parse_string(json_context *ctx, SV * tmp_str) {
 }
 
 static SV *
-json_parse_object(json_context *ctx) {
+json_parse_object(json_context *ctx, unsigned int cur_level) {
     UV looking_at;
     HV * hash;
-    SV * key;
-    SV * val;
+    SV * key = Nullsv;
+    SV * val = Nullsv;
     SV * tmp_str;
     int found_comma = 0;
     UV tmp_uv;
@@ -1198,6 +1272,10 @@ json_parse_object(json_context *ctx) {
         JSON_DEBUG("json_parse_object: looking at %04x", looking_at);
         return (SV *)&PL_sv_undef;
     }
+
+    ctx->hash_count++;
+    cur_level++;
+    UPDATE_CUR_LEVEL(ctx, cur_level);
 
     hash = newHV();
 
@@ -1255,7 +1333,7 @@ json_parse_object(json_context *ctx) {
         
         json_eat_whitespace(ctx, 0);
         
-        val = json_parse_value(ctx, 0);
+        val = json_parse_value(ctx, 0, cur_level);
         if (ctx->error) {
             SvREFCNT_dec(tmp_str);
             SvREFCNT_dec((SV *)hash);
@@ -1305,26 +1383,30 @@ json_parse_object(json_context *ctx) {
 }
 
 static SV *
-json_parse_array(json_context *ctx) {
+json_parse_array(json_context *ctx, unsigned int cur_level) {
     unsigned char looking_at;
     AV * array;
     SV * val;
     int found_comma = 0;
 
-    looking_at = json_peek_byte(ctx);
+    looking_at = JsCurChar(ctx);
     if (looking_at != '[') {
         return (SV *)&PL_sv_undef;
     }
 
-    json_next_byte(ctx);
+    ctx->array_count++;
+    cur_level++;
+    UPDATE_CUR_LEVEL(ctx, cur_level);
+
+    JsNextChar(ctx);
 
     json_eat_whitespace(ctx, 0);
 
     array = newAV();
     
-    looking_at = json_peek_byte(ctx);
+    looking_at = JsCurChar(ctx);
     if (looking_at == ']') {
-        json_next_byte(ctx);
+        JsNextChar(ctx);
         return (SV *)newRV_noinc((SV *)array);
     }
 
@@ -1333,26 +1415,26 @@ json_parse_array(json_context *ctx) {
 
         json_eat_whitespace(ctx, kCommasAreWhitespace);
 
-        val = json_parse_value(ctx, 0);
+        val = json_parse_value(ctx, 0, cur_level);
         av_push(array, val);
 
         json_eat_whitespace(ctx, 0);
 
-        looking_at = json_peek_byte(ctx);
+        looking_at = JsCurChar(ctx);
         if (looking_at == ',') {
             found_comma = 1;
             json_eat_whitespace(ctx, kCommasAreWhitespace);
-            looking_at = json_peek_byte(ctx);
+            looking_at = JsCurChar(ctx);
         }
         
         switch (looking_at) {
           case ']':
-              json_next_byte(ctx);
+              JsNextChar(ctx);
               return (SV *)newRV_noinc((SV *)array);
               break;
               
           case ',':
-              json_next_byte(ctx);
+              JsNextChar(ctx);
               json_eat_whitespace(ctx, kCommasAreWhitespace);
               /* json_eat_whitespace(ctx, 0); */
               break;
@@ -1373,7 +1455,7 @@ json_parse_array(json_context *ctx) {
 }
 
 static SV *
-json_parse_value(json_context *ctx, int is_identifier) {
+json_parse_value(json_context *ctx, int is_identifier, unsigned int cur_level) {
     UV looking_at;
     SV * rv;
 
@@ -1395,14 +1477,14 @@ json_parse_value(json_context *ctx, int is_identifier) {
     switch (looking_at) {
     case '{':
         JSON_DEBUG("before json_parse_object()");
-        rv = json_parse_object(ctx);
+        rv = json_parse_object(ctx, cur_level);
         JSON_DEBUG("after json_parse_object");
         return rv;
         break;
 
     case '[':
         JSON_DEBUG("before json_parse_array()");
-        rv = json_parse_array(ctx);
+        rv = json_parse_array(ctx, cur_level);
         JSON_DEBUG("after json_parse_array()");
         return rv;
         break;
@@ -1428,17 +1510,31 @@ json_parse_value(json_context *ctx, int is_identifier) {
 }
 
 static SV *
-parse_json(json_context *ctx) {
-    return json_parse_value(ctx, 0);
+parse_json(json_context * ctx) {
+    SV * rv = json_parse_value(ctx, 0, 0);
+
+    json_eat_whitespace(ctx, 0);
+    
+    if (! ctx->error && ctx->pos < ctx->len) {
+        ctx->error = JSON_PARSE_ERROR(ctx, "syntax error");
+        SvREFCNT_dec(rv);
+        rv = &PL_sv_undef;
+    }
+    
+
+    return rv;
 }
 
 
 static SV *
-from_json (SV * self, char * data_str, STRLEN data_str_len, SV ** error_msg, int *throw_exception) {
+from_json (SV * self, char * data_str, STRLEN data_str_len, SV ** error_msg, int *throw_exception,
+    SV * error_data_ref, SV * stats_data_ref) {
     json_context ctx;
     SV * val;
     SV ** ptr;
     SV * self_hash = SvRV(self);
+    SV * data = Nullsv;
+    SV * passed_error_data_sv = Nullsv;
     
     /*
     int is_utf8 = 0;
@@ -1498,22 +1594,49 @@ from_json (SV * self, char * data_str, STRLEN data_str_len, SV ** error_msg, int
     val = parse_json(&ctx);
     if (ctx.error) {
         *error_msg = ctx.error;
+
+        if (SvOK(error_data_ref) && SvROK(error_data_ref) && ctx.error_data) {
+            passed_error_data_sv = SvRV(error_data_ref);
+            sv_setsv(passed_error_data_sv, ctx.error_data);
+        }
     }
     else {
         *error_msg = (SV *)&PL_sv_undef;
+    }
+
+    /* if do stats */
+    if (SvOK(stats_data_ref) && SvROK(stats_data_ref)) {
+        data = SvRV(stats_data_ref);
+
+        /* FIXME: should destroy these if the store fails */
+        hv_store((HV *)data, "strings", 7, newSVuv(ctx.string_count), 0);
+        hv_store((HV *)data, "max_string_bytes", 16, newSVuv(ctx.longest_string_bytes), 0);
+        hv_store((HV *)data, "max_string_chars", 16, newSVuv(ctx.longest_string_chars), 0);
+        hv_store((HV *)data, "numbers", 7, newSVuv(ctx.number_count), 0);
+        hv_store((HV *)data, "bools", 5, newSVuv(ctx.bool_count), 0);
+        hv_store((HV *)data, "nulls", 5, newSVuv(ctx.null_count), 0);
+        hv_store((HV *)data, "hashes", 6, newSVuv(ctx.hash_count), 0);
+        hv_store((HV *)data, "arrays", 6, newSVuv(ctx.array_count), 0);
+        hv_store((HV *)data, "max_depth", 9, newSVuv(ctx.deepest_level), 0);
+
+        hv_store((HV *)data, "lines", 5, newSVuv(ctx.line), 0);
+        hv_store((HV *)data, "bytes", 5, newSVuv(ctx.pos), 0);
+        hv_store((HV *)data, "chars", 5, newSVuv(ctx.char_pos), 0);
     }
 
     return (SV *)val;   
 }
 
 static SV *
-from_json_sv (SV * self, SV * data_sv, SV ** error_msg, int *throw_exception) {
+from_json_sv (SV * self, SV * data_sv, SV ** error_msg, int *throw_exception,
+    SV * error_data_ref, SV * stats_data_ref) {
     STRLEN data_str_len;
     char * data_str;
 
     data_str = SvPV(data_sv, data_str_len);
 
-    return from_json(self, data_str, data_str_len, error_msg, throw_exception);
+    return from_json(self, data_str, data_str_len, error_msg, throw_exception, error_data_ref,
+        stats_data_ref);
 }
 
 /*
@@ -1595,6 +1718,8 @@ escape_json_str(self_context * self, SV * sv_str) {
         return newSVpv("null", 4);
     }
 
+    self->string_count++;
+
     if (data_str_len == 0) {
         /* empty string */
         return newSVpv("\"\"", 2);
@@ -1640,11 +1765,12 @@ escape_json_str(self_context * self, SV * sv_str) {
                         /* default */
                         
                         if (data_str_len < 40) {
-                            self->error = JSON_ENCODE_ERROR("bad utf8 sequence starting with %#02x - %s",
+                            self->error = JSON_ENCODE_ERROR(self,
+                                "bad utf8 sequence starting with %#02x - %s",
                                 (UV)data_str[sv_pos], data_str);
                         }
                         else {
-                            self->error = JSON_ENCODE_ERROR("bad utf8 sequence starting with %#02x",
+                            self->error = JSON_ENCODE_ERROR(self, "bad utf8 sequence starting with %#02x",
                                 (UV)data_str[sv_pos]);
                         }
                         
@@ -1738,7 +1864,7 @@ escape_json_str(self_context * self, SV * sv_str) {
 }
 
 static SV *
-encode_array(self_context * self, AV * array, int indent_level) {
+encode_array(self_context * self, AV * array, int indent_level, unsigned int cur_level) {
     SV * rsv = NULL;
     SV * tmp_sv = NULL;
     I32 max_i = av_len(array); /* max index, not length */
@@ -1749,6 +1875,11 @@ encode_array(self_context * self, AV * array, int indent_level) {
     MAGIC * magic_ptr = NULL;
 
     JsDumpSv((SV *)array, self->flags);
+
+    cur_level++;
+    UPDATE_CUR_LEVEL(self, cur_level);
+
+    self->array_count++;
 
     if (self->flags & kPrettyPrint) {
         if (indent_level == 0) {
@@ -1786,7 +1917,7 @@ encode_array(self_context * self, AV * array, int indent_level) {
                 SvGETMAGIC(*element);
             }
 
-            tmp_sv = to_json(self, *element, indent_level + 1);
+            tmp_sv = to_json(self, *element, indent_level + 1, cur_level);
 
             if (self->flags & kPrettyPrint) {
                 sv_catpvn(rsv, "\n", 1);
@@ -1940,7 +2071,7 @@ hash_key_can_be_bare(self_context * self, U8 *key, STRLEN key_len) {
 }
 
 static SV *
-encode_hash(self_context * self, HV * hash, int indent_level) {
+encode_hash(self_context * self, HV * hash, int indent_level, unsigned int cur_level) {
     SV * rsv = NULL;
     SV * tmp_sv = NULL;
     SV * tmp_sv2 = NULL;
@@ -1953,6 +2084,11 @@ encode_hash(self_context * self, HV * hash, int indent_level) {
     MAGIC * magic_ptr = NULL;
     HE * entry;
     SV * key_sv = NULL;
+
+    cur_level++;
+    UPDATE_CUR_LEVEL(self, cur_level);
+
+    self->hash_count++;
 
     if (self->flags & kPrettyPrint) {
         if (indent_level == 0) {
@@ -2052,7 +2188,7 @@ encode_hash(self_context * self, HV * hash, int indent_level) {
 
         sv_catpvn(rsv, ":", 1);
 
-        tmp_sv = to_json(self, val, indent_level + 2);
+        tmp_sv = to_json(self, val, indent_level + 2, cur_level);
         if (self->error) {
             SvREFCNT_dec(tmp_sv);
             SvREFCNT_dec(rsv);
@@ -2076,7 +2212,7 @@ encode_hash(self_context * self, HV * hash, int indent_level) {
 }
 
 static SV *
-to_json(self_context * self, SV * data_ref, int indent_level) {
+to_json(self_context * self, SV * data_ref, int indent_level, unsigned int cur_level) {
     SV * data;
     int type;
     SV * rsv = newSVpv("", 0);
@@ -2095,9 +2231,6 @@ to_json(self_context * self, SV * data_ref, int indent_level) {
         data = data_ref;
         if (SvOK(data)) {
 
-
-
-
             /* scalar */
             type = SvTYPE(data);
             JSON_TRACE("found type %u", type);
@@ -2112,6 +2245,8 @@ to_json(self_context * self, SV * data_ref, int indent_level) {
               case SVt_NV:
                   before_len = JsSvLen(rsv);
                   sv_catsv(rsv, data);
+
+                  self->number_count++;
 
                   if (JsSvLen(rsv) == before_len) {
                       sv_catpvn(rsv, "\"\"", 2);
@@ -2169,10 +2304,12 @@ to_json(self_context * self, SV * data_ref, int indent_level) {
         if (sv_isa(data_ref, "JSON::DWIW::Boolean")) {
             if (SvTRUE(data_ref)) {
                 sv_setpvn(rsv, "true", 4);
+                self->bool_count++;
                 return rsv;
             }
             else {
                 sv_setpvn(rsv, "false", 5);
+                self->bool_count++;
                 return rsv;
             }
         }
@@ -2270,14 +2407,14 @@ to_json(self_context * self, SV * data_ref, int indent_level) {
       case SVt_PVAV: /* array */
           JSON_DEBUG("==========> found array ref");
           SvREFCNT_dec(rsv);
-          return encode_array(self, (AV *)data, indent_level);
+          return encode_array(self, (AV *)data, indent_level, cur_level);
         break;
 
       case SVt_PVHV: /* hash */
           JSON_DEBUG("==========> found hash ref");
 
           SvREFCNT_dec(rsv);
-          return encode_hash(self, (HV *)data, indent_level);
+          return encode_hash(self, (HV *)data, indent_level, cur_level);
           break;
 
       case SVt_PVCV: /* code */
@@ -2347,6 +2484,36 @@ to_json(self_context * self, SV * data_ref, int indent_level) {
     sv_setpvn(rsv, "unknown type 2", 14);
     return rsv;
 
+}
+
+static int
+set_encode_stats(self_context * ctx, SV * stats_data_ref) {
+    SV * data = Nullsv;
+
+    if (SvOK(stats_data_ref) && SvROK(stats_data_ref)) {
+        data = SvRV(stats_data_ref);
+        
+        /* FIXME: should destroy these if the store fails */
+
+        /*
+        hv_store((HV *)data, "max_string_bytes", 16, newSVuv(ctx->longest_string_bytes), 0);
+        hv_store((HV *)data, "max_string_chars", 16, newSVuv(ctx->longest_string_chars), 0);
+        hv_store((HV *)data, "nulls", 5, newSVuv(ctx->null_count), 0);
+        */
+
+        /*
+        hv_store((HV *)data, "strings", 7, newSVuv(ctx->string_count), 0);
+        hv_store((HV *)data, "bools", 5, newSVuv(ctx->bool_count), 0);        
+        hv_store((HV *)data, "numbers", 7, newSVuv(ctx->number_count), 0);
+        */
+
+        hv_store((HV *)data, "hashes", 6, newSVuv(ctx->hash_count), 0);
+        hv_store((HV *)data, "arrays", 6, newSVuv(ctx->array_count), 0);
+        hv_store((HV *)data, "max_depth", 9, newSVuv(ctx->deepest_level), 0);
+
+    }
+
+    return 1;
 }
 
 static SV *
@@ -2422,7 +2589,7 @@ MODULE = JSON::DWIW  PACKAGE = JSON::DWIW
 PROTOTYPES: DISABLE
 
 SV *
-_xs_from_json(SV * self, SV * data, SV * error_msg_ref)
+_xs_from_json(SV * self, SV * data, SV * error_msg_ref, SV * error_data_ref, SV * stats_data_ref)
     PREINIT:
     SV * rv;
     SV * error_msg;
@@ -2431,7 +2598,7 @@ _xs_from_json(SV * self, SV * data, SV * error_msg_ref)
 
     CODE:
     error_msg = (SV *)&PL_sv_undef;
-    rv = from_json_sv(self, data, &error_msg, &throw_exception);
+    rv = from_json_sv(self, data, &error_msg, &throw_exception, error_data_ref, stats_data_ref);
     if (SvOK(error_msg) && SvROK(error_msg_ref)) {
         passed_error_msg_sv = SvRV(error_msg_ref);
         sv_setsv(passed_error_msg_sv, error_msg);
@@ -2444,17 +2611,29 @@ _xs_from_json(SV * self, SV * data, SV * error_msg_ref)
 
 
 SV *
-_xs_to_json(SV * self, SV * data, SV * error_msg_ref)
+_xs_to_json(SV * self, SV * data, SV * error_msg_ref, SV * error_data_ref, SV * stats_ref)
      PREINIT:
      self_context self_context;
      SV * rv;
      int indent_level = 0;
+     SV * passed_error_data_sv = Nullsv;
 
      CODE:
      setup_self_context(self, &self_context);
-     rv = to_json(&self_context, data, indent_level);
+     rv = to_json(&self_context, data, indent_level, 0);
+
+    if (SvOK(stats_ref)) {
+        set_encode_stats(&self_context, stats_ref);
+     }
+
      if (self_context.error) {
          sv_setsv(SvRV(error_msg_ref), self_context.error);
+
+         if (SvOK(error_data_ref) && SvROK(error_data_ref) && self_context.error_data) {
+             passed_error_data_sv = SvRV(error_data_ref);
+             sv_setsv(passed_error_data_sv, self_context.error_data);
+         }
+
      }
 
      RETVAL = rv;
@@ -2596,7 +2775,7 @@ unflag_as_utf8(SV * self, SV * str)
     RETVAL
 
 SV *
-code_point_to_hex_bytes(SV * self, SV * code_point_sv)
+code_point_to_hex_bytes(SV *, SV * code_point_sv)
     PREINIT:
     UV code_point;
     U8 utf8_bytes[5];
@@ -2626,7 +2805,7 @@ code_point_to_hex_bytes(SV * self, SV * code_point_sv)
     RETVAL
 
 SV *
-bytes_to_code_points(SV * self, SV * bytes)
+bytes_to_code_points(SV *, SV * bytes)
     PREINIT:
     U8 * data_str;
     STRLEN data_str_len;
@@ -2650,7 +2829,7 @@ bytes_to_code_points(SV * self, SV * bytes)
             element = av_fetch(av, i , 0);
             if (element && *element) {
                 this_char = SvUV(*element);
-                fprintf(stderr, "%02x\n", this_char);
+                fprintf(stderr, "%02"UVxf"\n", this_char);
             }
             else {
                 this_char = 0;
@@ -2693,5 +2872,21 @@ _parse_mmap_file(SV * self, SV * file, SV * error_msg_ref)
 
  OUTPUT:
  RETVAL
+
+SV *
+_check_scalar(SV *, SV * the_scalar)
+ CODE:
+ fprintf(stderr, "SV * at addr %p\n", the_scalar);
+ sv_dump(the_scalar);
+ if (SvROK(the_scalar)) {
+    printf("\ndereferenced:\n");
+    fprintf(stderr, "SV * at addr %p\n", SvRV(the_scalar));
+    sv_dump(SvRV(the_scalar));
+ }
+ RETVAL = &PL_sv_yes;
+
+ OUTPUT:
+ RETVAL
+
 
 

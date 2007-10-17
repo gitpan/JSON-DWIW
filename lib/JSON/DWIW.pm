@@ -27,6 +27,10 @@ JSON::DWIW - JSON converter that Does What I Want
  my $data = $json_obj->from_json($json_str);
  my $str = $json_obj->to_json($data);
 
+ my $error_string = $json_obj->get_error_string;
+ my $error_data = $json_obj->get_error_data;
+ my $stats = $json_obj->get_stats;
+
  my $data = $json_obj->from_json_file($file)
  my $ok = $json_obj->to_json_file($data, $file);
 
@@ -135,7 +139,7 @@ require DynaLoader;
 
 Exporter::export_ok_tags('all');
 
-our $VERSION = '0.15';
+our $VERSION = '0.16';
 
 {
     package JSON::DWIW::Exporter;
@@ -317,7 +321,21 @@ sub to_json {
     }
 
     my $error_msg;
-    my $str = _xs_to_json($self, $data, \$error_msg);
+    my $error_data;
+    my $stats_data = { };
+    my $str = _xs_to_json($self, $data, \$error_msg, \$error_data, $stats_data);
+
+    if ($stats_data) {
+        $JSON::DWIW::Last_Stats = $stats_data;
+        $self->{last_stats} = $stats_data;
+    }
+
+    $JSON::DWIW::LastError = $error_msg;
+    $self->{last_error} = $error_msg;
+
+    $JSON::DWIW::LastErrorData = $error_data;
+    $self->{last_error_data} = $error_data;
+
     if (defined($error_msg) and $self->{use_exceptions}) {
         die $error_msg;
     }
@@ -384,7 +402,21 @@ sub from_json {
     }
 
     my $error_msg;
-    my $data = _xs_from_json($self, $json, \$error_msg);
+    my $error_data;
+    my $stats_data = { };
+    my $data = _xs_from_json($self, $json, \$error_msg, \$error_data, $stats_data);
+
+    if ($stats_data) {
+        $JSON::DWIW::Last_Stats = $stats_data;
+        $self->{last_stats} = $stats_data;
+    }
+
+    $JSON::DWIW::LastError = $error_msg;
+    $self->{last_error} = $error_msg;
+
+    $JSON::DWIW::LastErrorData = $error_data;
+    $self->{last_error_data} = $error_data;
+    
     if (defined($error_msg) and $self->{use_exceptions}) {
         die $error_msg;
     }
@@ -439,6 +471,9 @@ sub from_json_file {
     my $in_fh;
     unless (open($in_fh, '<', $file)) {
         my $msg = "JSON::DWIW v$VERSION - couldn't open input file $file";
+        $JSON::DWIW::LastError = $msg;
+        $self->{last_error} = $msg;
+
         if ($self->{use_exceptions}) {
             die $msg;
         } else {
@@ -454,7 +489,22 @@ sub from_json_file {
     close $in_fh;
 
     my $error_msg;
-    my $data = _xs_from_json($self, $json, \$error_msg);
+    my $error_data;
+    my $stats_data = { };
+    my $data = _xs_from_json($self, $json, \$error_msg, \$error_data, $stats_data);
+    
+    if ($stats_data) {
+        $JSON::DWIW::Last_Stats = $stats_data;
+        $self->{last_stats} = $stats_data;
+    }
+
+    $JSON::DWIW::LastError = $error_msg;
+    $self->{last_error} = $error_msg;
+
+    $JSON::DWIW::LastErrorData = $error_data;
+    $self->{last_error_data} = $error_data;
+
+    
     if (defined($error_msg) and $self->{use_exceptions}) {
         die $error_msg;
     }
@@ -513,7 +563,22 @@ sub to_json_file {
     }
 
     my $error_msg;
-    my $str = _xs_to_json($self, $data, \$error_msg);
+    my $error_data;
+    my $stats_data = { };
+    my $str = _xs_to_json($self, $data, \$error_msg, \$error_data, $stats_data);
+
+    if ($stats_data) {
+        $JSON::DWIW::Last_Stats = $stats_data;
+        $self->{last_stats} = $stats_data;
+    }
+
+    $JSON::DWIW::LastError = $error_msg;
+    $self->{last_error} = $error_msg;
+
+    $JSON::DWIW::LastErrorData = $error_data;
+    $self->{last_error_data} = $error_data;
+
+
     if (defined($error_msg) and $self->{use_exceptions}) {
         die $error_msg;
     }
@@ -547,7 +612,101 @@ sub parse_mmap_file {
 
 =pod
 
-=head2 true()
+=head2 get_error_string
+
+ Returns the error message from the last call, if there was one, e.g.,
+
+ my $data = JSON::DWIW->from_json($json_str)
+     or die "JSON error: " . JSON::DWIW->get_error_string;
+
+ my $data = $json_obj->from_json($json_str)
+     or die "JSON error: " . $json_obj->get_error_string;
+
+
+ Aliases: get_err_str(), errstr()
+
+=cut
+sub get_error_string {
+    my $self = shift;
+
+    if (ref($self)) {
+        return $self->{last_error};
+    }
+    
+    return $JSON::DWIW::LastError;
+}
+*get_err_str = \&get_error_string;
+*errstr = \&get_error_string;
+
+=pod
+
+=head2 get_error_data
+
+ Returns the error details from the last call, in a hash ref, e.g.,
+
+ $error_data = {
+                'byte' => 23,
+                'byte_col' => 23,
+                'col' => 22,
+                'char' => 22,
+                'version' => '0.15a',
+                'line' => 1
+              };
+
+ This is really only useful when decoding JSON.
+
+ Aliases: get_error(), error()
+
+=cut
+sub get_error_data {
+    my $self = shift;
+
+    if (ref($self)) {
+        return $self->{last_error_data};
+    }
+
+    return $JSON::DWIW::LastErrorData;
+}
+*get_error = \&get_error_data;
+*error = \&get_error_data;
+
+=pod
+
+=head2 get_stats
+
+ Returns statistics from the last method called to encode or
+ decode.  E.g., for an encoding (to_json() or to_json_file()),
+
+    $stats = {
+               'bytes' => 78,
+               'nulls' => 1,
+               'max_string_bytes' => 5,
+               'max_depth' => 2,
+               'arrays' => 1,
+               'numbers' => 6,
+               'lines' => 1,
+               'max_string_chars' => 5,
+               'strings' => 6,
+               'bools' => 1,
+               'chars' => 78,
+               'hashes' => 1
+             };
+
+=cut
+sub get_stats {
+    my $self = shift;
+    if (ref($self)) {
+        return $self->{last_stats};
+    }
+
+    return $JSON::DWIW::Last_Stats;
+}
+*stats = \&get_stats;
+
+
+=pod
+
+=head2 true
 
  Returns an object that will get output as a true value when encoding to JSON.
 
@@ -559,7 +718,7 @@ sub true {
 
 =pod
 
-=head2 false()
+=head2 false
 
  Returns an object that will get output as a false value when encoding to JSON.
 

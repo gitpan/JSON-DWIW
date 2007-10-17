@@ -28,6 +28,8 @@ use Carp;
                   EXE_FILES => [],
                   PREREQ_PM => {
                                },
+                  
+                  # OPTIMIZE => '-Wall -O3',
                   );
 
 

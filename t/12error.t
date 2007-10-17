@@ -10,10 +10,11 @@ use warnings;
 {
     use Test;
     BEGIN {
-        plan tests => 15;
+        plan tests => 18;
     }
 
     use JSON::DWIW;
+    my $json_obj = JSON::DWIW->new;
     
     my $str = qq{{"test":"\xc3\xa4","funky":"\\u70":"key":"val"}};
     my ($data, $error) = JSON::DWIW->from_json($str);
@@ -26,6 +27,7 @@ use warnings;
     ok(defined $error and $error =~ /line 1/);
     ok(defined $error and $error =~ /, col 26/);
     ok(defined $error and $error =~ /byte col 27/);
+    ok(defined JSON::DWIW->get_error_string);
 
     $str = qq{{"test":"\xc3\xa4",\n"funky":"\\u70":"key":"val"}};
     ($data, $error) = JSON::DWIW->from_json($str);
@@ -40,6 +42,15 @@ use warnings;
     ok(defined $error and $error =~ /unterminated string starting at byte 22/);
     ok(defined $error and $error =~ /char 22/);
     ok(defined $error and $error =~ /byte 23/);
+
+    $str = qq|{"var1":1,"var2":"val2","var3":[1,2,3,4,5], "test":true, "check":null}\n{"var4":"val4"}|;
+    ($data, $error) = JSON::DWIW->from_json($str);
+    ok(defined $error);
+
+    
+    ($data, $error) = $json_obj->from_json($str);
+    ok(defined $json_obj->get_error_string);
+
 }
 
 exit 0;
