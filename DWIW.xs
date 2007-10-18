@@ -55,7 +55,7 @@ extern "C" {
 #define USE_MMAP 0
 #endif
 
-#ifdef USE_MMAP
+#if USE_MMAP
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/mman.h>

@@ -1,3 +1,7 @@
+Version 0.17
+    * Fixed bug where unnecessary header files were being included,
+      breaking the build on Windows
+
 Version 0.16
     * Added get_stats() method
     * Added get_error_string() method
