@@ -591,7 +591,7 @@ get_new_bool_obj(int bool_val) {
 
 #define JsSvLen(val) sv_len(val)
 
-#define JsDumpSv(sv, flags) ( (flags & kDumpVars) ? sv_dump(sv) : 0 )
+#define JsDumpSv(sv, flags) if (flags & kDumpVars) { sv_dump(sv); }
 
 #ifdef IS_PERL_5_6
 #define convert_utf8_to_uv(utf8, len_ptr) utf8_to_uv_simple(utf8, len_ptr)

@@ -1,3 +1,6 @@
+Version 0.19
+    * Added fix for compiling on hpux
+
 Version 0.18
     * Fixed compilation problem on Windows by removing calls to bzero()
 

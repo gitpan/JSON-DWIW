@@ -140,7 +140,7 @@ require DynaLoader;
 Exporter::export_ok_tags('all');
 
 # change in POD as well!
-our $VERSION = '0.18';
+our $VERSION = '0.19';
 
 {
     package JSON::DWIW::Exporter;
@@ -820,7 +820,7 @@ PURPOSE.
 
 =head1 VERSION
 
-0.18
+0.19
 
 =cut
 
