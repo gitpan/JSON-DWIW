@@ -607,11 +607,13 @@ get_new_bool_obj(int bool_val) {
 
 #define JsHaveMoreChars(ctx) ( (ctx)->pos < (ctx)->len )
 
-#define JsCurChar(ctx) ( JsHaveMoreChars(ctx) ? ( UTF8_IS_INVARIANT(ctx->data[ctx->pos]) ? (ctx->data[ctx->pos]) : ( convert_utf8_to_uv((unsigned char *)&(ctx->data[ctx->pos]), NULL))) : 0 )
+#define UC2UV(c) ( (UV)(c) )
 
-#define JsNextChar(ctx) ( JsHaveMoreChars(ctx) ? (UTF8_IS_INVARIANT(ctx->data[ctx->pos]) ? (ctx->col++, ctx->char_pos++, ctx->char_col++, ctx->data[ctx->pos++]) : json_next_multibyte_char(ctx)) : 0 )
+#define JsCurChar(ctx) ( JsHaveMoreChars(ctx) ? ( UTF8_IS_INVARIANT(ctx->data[ctx->pos]) ? UC2UV(ctx->data[ctx->pos]) : ( convert_utf8_to_uv((unsigned char *)&(ctx->data[ctx->pos]), NULL))) : 0 )
 
-#define JsNextCharWithArg(ctx, uv, len) ( JsHaveMoreChars(ctx) ? (UTF8_IS_INVARIANT(ctx->data[ctx->pos]) ? (ctx->col++, ctx->char_pos++, ctx->char_col++, ctx->data[ctx->pos++]) : (uv = convert_utf8_to_uv((unsigned char *)&(ctx->data[ctx->pos]), &len), ctx->pos += len, ctx->col += len, ctx->char_pos++, ctx->char_col++, uv) ) : 0 )
+#define JsNextChar(ctx) ( JsHaveMoreChars(ctx) ? (UTF8_IS_INVARIANT(ctx->data[ctx->pos]) ? (ctx->col++, ctx->char_pos++, ctx->char_col++, UC2UV(ctx->data[ctx->pos++])) : json_next_multibyte_char(ctx)) : 0 )
+
+#define JsNextCharWithArg(ctx, uv, len) ( JsHaveMoreChars(ctx) ? (UTF8_IS_INVARIANT(ctx->data[ctx->pos]) ? (ctx->col++, ctx->char_pos++, ctx->char_col++, UC2UV(ctx->data[ctx->pos++])) : (uv = convert_utf8_to_uv((unsigned char *)&(ctx->data[ctx->pos]), &len), ctx->pos += len, ctx->col += len, ctx->char_pos++, ctx->char_col++, uv) ) : 0 )
 
 static UV
 json_next_multibyte_char(json_context * ctx) {
@@ -1576,7 +1578,7 @@ from_json (SV * self, char * data_str, STRLEN data_str_len, SV ** error_msg, int
     }
     */
 
-    bzero(&ctx, sizeof(json_context));
+    memzero(&ctx, sizeof(json_context));
     ctx.len = data_str_len;
     ctx.data = data_str;
     ctx.pos = 0;

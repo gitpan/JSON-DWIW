@@ -29,7 +29,7 @@ use Carp;
                   PREREQ_PM => {
                                },
                   
-                  # OPTIMIZE => '-Wall -O3',
+                  # OPTIMIZE => '-Wall -O3 -fno-non-lvalue-assign',
                   );
 
 
