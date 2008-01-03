@@ -140,7 +140,7 @@ require DynaLoader;
 Exporter::export_ok_tags('all');
 
 # change in POD as well!
-our $VERSION = '0.19';
+our $VERSION = '0.20';
 
 {
     package JSON::DWIW::Exporter;
@@ -350,6 +350,26 @@ sub to_json {
     *objToJson = \&to_json;
 }
 
+sub serialize {
+    my $data = shift;
+    my $options = shift || { };
+
+    my $error_msg;
+    my $error_data;
+    my $stats_data = { };
+    my $str = _xs_to_json($options, $data, \$error_msg, \$error_data, $stats_data);
+
+    if ($stats_data) {
+        $JSON::DWIW::Last_Stats = $stats_data;
+    }
+
+    $JSON::DWIW::LastError = $error_msg;
+
+    $JSON::DWIW::LastErrorData = $error_data;
+
+    return $str;
+}
+
 =pod
 
 =head2 from_json
@@ -431,6 +451,22 @@ sub from_json {
     *fromJson = \&from_json;
     *fromJSON = \&from_json;
 }
+
+=pod
+
+=head2 deserialize($json_str, \%options)
+
+Experimental new function, use at your own risk.  Converts from
+JSON to Perl.  This function is a rewrite from the ground up of
+from_json.  It is not yet garanteed to be feature/bug compatible
+with from_json.  It is faster than any Perl module I've seen for
+deserializing (faster than the corresponding function in
+JSON::XS).
+
+=cut
+
+# =head2 deserialize_file($file, \%options);
+
 
 =pod
 
@@ -820,7 +856,7 @@ PURPOSE.
 
 =head1 VERSION
 
-0.19
+0.20
 
 =cut
 

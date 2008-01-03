@@ -10,14 +10,33 @@ use warnings;
 {
     use Test;
     BEGIN {
-        plan tests => 18;
+        plan tests => 26;
     }
 
     use JSON::DWIW;
     my $json_obj = JSON::DWIW->new;
     
     my $str = qq{{"test":"\xc3\xa4","funky":"\\u70":"key":"val"}};
-    my ($data, $error) = JSON::DWIW->from_json($str);
+    my ($data, $error);
+
+    my $deser_skip = JSON::DWIW->has_deserialize ? '' : 'Skip -- deserialize not available';
+
+    unless ($deser_skip) {
+        $data = JSON::DWIW::deserialize($str);
+        $error = JSON::DWIW::get_error_string();
+    }
+
+   skip($deser_skip, $error);
+
+    skip($deser_skip, (defined $error and $error =~ /bad unicode character specification/));
+    skip($deser_skip, (defined $error and $error =~ /char 25/));
+    skip($deser_skip, (defined $error and $error =~ /byte 26/));
+    skip($deser_skip, (defined $error and $error =~ /line 1/));
+    skip($deser_skip, (defined $error and $error =~ /, col 25/));
+    skip($deser_skip, (defined $error and $error =~ /byte col 26/));
+    skip($deser_skip, (defined JSON::DWIW->get_error_string));
+    
+    ($data, $error) = JSON::DWIW->from_json($str);
 
     ok($error);
 

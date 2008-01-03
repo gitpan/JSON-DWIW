@@ -61,6 +61,10 @@ extern "C" {
 #include <sys/mman.h>
 #endif
 
+#ifdef HAVE_JSONEVT
+#include "evt.h"
+#endif
+
 #define debug_level 9
 
 #ifndef PERL_MAGIC_tied
@@ -121,6 +125,7 @@ JSON_TRACE(char *fmt, ...) {
 #define kCommasAreWhitespace 1
 
 #define UNLESS(stuff) if (! (stuff))
+#define MEM_EQ(buf1, buf2, len) ( memcmp((void *)buf1, (void *)buf2, len) == 0 )
 
 /* for converting from JSON */
 typedef struct {
@@ -759,7 +764,7 @@ json_eat_whitespace(json_context *ctx, UV flags) {
 
 static void
 json_eat_digits(json_context *ctx) {
-    unsigned char looking_at;
+    UV looking_at;
 
     looking_at = JsCurChar(ctx);
     while (ctx->pos < ctx->len && looking_at >= '0' && looking_at <= '9') {
@@ -776,7 +781,7 @@ json_eat_digits(json_context *ctx) {
 static SV *
 json_parse_number(json_context *ctx, SV * tmp_str) {
     SV * rv = NULL;
-    unsigned char looking_at;
+    UV looking_at;
     STRLEN start_pos = ctx->pos;
     NV nv_value = 0; /* double */
     UV uv_value = 0;
@@ -1386,7 +1391,7 @@ json_parse_object(json_context *ctx, unsigned int cur_level) {
 
 static SV *
 json_parse_array(json_context *ctx, unsigned int cur_level) {
-    unsigned char looking_at;
+    UV looking_at;
     AV * array;
     SV * val;
     int found_comma = 0;
@@ -1528,16 +1533,106 @@ parse_json(json_context * ctx) {
 }
 
 
+static int
+check_bom(json_context * ctx) {
+    UV len = ctx->len;
+    char * buf = ctx->data;
+    char * error_fmt = "found BOM for unsupported %s encoding -- this parser requires UTF-8";
+
+    /* check for UTF BOM signature */
+    /* The signature, if present, is the U+FEFF character encoded the
+       same as the rest of the buffer.
+       See <http://www.unicode.org/unicode/faq/utf_bom.html#25>.
+    */
+    if (len >= 1) {
+        switch (*buf) {
+
+          case '\xEF': /* maybe utf-8 */
+              if (len >= 3 && MEM_EQ(buf, "\xEF\xBB\xBF", 3)) {
+                  /* UTF-8 signature */
+
+                  /* Move our position past the signature and parse as
+                     if there were no signature, but this explicitly
+                     indicates the buffer is encoded in utf-8
+                  */
+                  JsNextChar(ctx);
+                  /* NEXT_CHAR(ctx); */
+
+                  /*
+                  ctx->pos += 3;
+                  ctx->cur_byte_pos += 3;
+                  ctx->cur_char_pos++;
+                  ctx->char_pos++;
+                  */
+              }
+              return 1;
+              break;
+
+
+              /* The rest, if present are not supported by this
+                 parser, so reject with an error.
+              */
+
+          case '\xFE': /* maybe utf-16 big-endian */
+              if (len >= 2 && MEM_EQ(buf, "\xFE\xFF", 2)) {
+                  /* UTF-16BE */
+                  ctx->error = JSON_PARSE_ERROR(ctx, error_fmt, "UTF-16BE");
+                  return 0;
+              }
+              break;
+
+          case '\xFF': /* maybe utf-16 little-endian or utf-32 little-endian */
+              if (len >= 2) {
+                  if (MEM_EQ(buf, "\xFF\xFE", 2)) {
+                      /* UTF-16LE */
+                      ctx->error = JSON_PARSE_ERROR(ctx, error_fmt, "UTF-16LE");
+                      return 0;
+                  }
+                  else if (len >= 4) {
+                      if (MEM_EQ(buf, "\xFF\xFE\x00\x00", 4)) {
+                          /* UTF-32LE */
+                          ctx->error = JSON_PARSE_ERROR(ctx, error_fmt, "UTF-32LE");
+                          return 0;
+                      }
+                  }
+              }
+              break;
+
+          case '\x00': /* maybe utf-32 big-endian */
+              if (len >= 4) {
+                  if (MEM_EQ(buf, "\x00\x00\xFE\xFF", 4)) {
+                      /* UTF-32BE */
+                      ctx->error = JSON_PARSE_ERROR(ctx, error_fmt, "UTF-32B");
+                      return 0;
+                  }
+              }
+              break;
+
+          default:
+              /* allow through */
+              return 1;
+              break;
+        }
+
+    }
+
+    return 1;
+}
+
 static SV *
 from_json (SV * self, char * data_str, STRLEN data_str_len, SV ** error_msg, int *throw_exception,
     SV * error_data_ref, SV * stats_data_ref) {
     json_context ctx;
-    SV * val;
+    SV * val = Nullsv;
     SV ** ptr;
-    SV * self_hash = SvRV(self);
+    HV * self_hash = Nullhv;
     SV * data = Nullsv;
     SV * passed_error_data_sv = Nullsv;
     
+    if (self && SvOK(self) && SvROK(self)) {
+        self_hash = (HV *)SvRV(self);
+    }
+
     /*
     int is_utf8 = 0;
     int is_utf_16be = 0;
@@ -1556,27 +1651,6 @@ from_json (SV * self, char * data_str, STRLEN data_str_len, SV ** error_msg, int
         return val;
     }
 
-    /*
-    if (data_str_len >= 2) {
-        if (data_str[0] != '\x00' && data_str[1] != '\x00') {
-            is_utf8 = 1;
-        }
-        else if (data_str_len >= 4) {
-            if (data_str[0] == '\x00') {
-                if (data_str[1] != '\x00'
-                    && data_str[2] == '\x00' && data_str[3] != '\x00') {
-                    is_utf_16be = 1;
-                }
-                else if (data_str[1] == '\x00' && data_str[2] == '\x00' && data_str[3] != '\x00') {
-                    is_utf_32be = 1;
-                }
-            }
-            else {
-                
-            }
-        }
-    }
-    */
 
     memzero(&ctx, sizeof(json_context));
     ctx.len = data_str_len;
@@ -1584,16 +1658,24 @@ from_json (SV * self, char * data_str, STRLEN data_str_len, SV ** error_msg, int
     ctx.pos = 0;
     ctx.error = (SV *)0;
     ctx.self = self;
-    ctx.bad_char_policy = get_bad_char_policy((HV *)self_hash);
     ctx.line = 1;
     ctx.col = 0;
 
-    ptr = hv_fetch((HV *)self_hash, "convert_bool", 12, 0);
-    if (ptr && SvTRUE(*ptr)) {
-        ctx.flags |= kConvertBool;
+    if (self_hash) {
+        ctx.bad_char_policy = get_bad_char_policy((HV *)self_hash);
+        ptr = hv_fetch((HV *)self_hash, "convert_bool", 12, 0);
+        if (ptr && SvTRUE(*ptr)) {
+            ctx.flags |= kConvertBool;
+        }
     }
 
-    val = parse_json(&ctx);
+    if (check_bom(&ctx)) {
+        val = parse_json(&ctx);
+    }
+    else {
+        val = newSV(0);
+    }
+
     if (ctx.error) {
         *error_msg = ctx.error;
 
@@ -1639,6 +1721,52 @@ from_json_sv (SV * self, SV * data_sv, SV ** error_msg, int *throw_exception,
 
     return from_json(self, data_str, data_str_len, error_msg, throw_exception, error_data_ref,
         stats_data_ref);
+}
+
+static SV *
+has_jsonevt() {
+#ifdef HAVE_JSONEVT
+    return newSVuv(1);
+#else
+    return newSV(0);
+#endif
+}
+
+static SV *
+deserialize_json(SV * self, char * data_str, STRLEN data_str_len) {
+#ifdef HAVE_JSONEVT
+    SV * val;
+
+    UNLESS (data_str) {
+        /* return undef */
+        return (SV *)&PL_sv_undef;
+    }
+
+    if (data_str_len == 0) {
+        /* return empty string */
+        val = newSVpv("", 0);
+        return val;
+    }
+
+    
+    val = do_json_parse_buf(self, data_str, data_str_len);
+
+    return (SV *)val;
+#else
+    croak("the deserialize function is not yet available on this platform");
+
+    return &PL_sv_undef;
+#endif
+}
+
+static SV *
+deserialize_json_sv (SV * self, SV * data_sv) {
+    STRLEN data_str_len;
+    char * data_str;
+
+    data_str = SvPV(data_sv, data_str_len);
+
+    return deserialize_json(self, data_str, data_str_len);
 }
 
 /*
@@ -2085,7 +2213,7 @@ encode_hash(self_context * self, HV * hash, int indent_level, unsigned int cur_l
     int num_spaces = 0;
     MAGIC * magic_ptr = NULL;
     HE * entry;
-    SV * key_sv = NULL;
+    /* SV * key_sv = NULL; */
 
     cur_level++;
     UPDATE_CUR_LEVEL(self, cur_level);
@@ -2127,7 +2255,7 @@ encode_hash(self_context * self, HV * hash, int indent_level, unsigned int cur_l
             break;
         }
 
-        key_sv = HeSVKEY(entry);
+        /* key_sv = HeSVKEY(entry); */
         key = (unsigned char *)hv_iterkey(entry, &key_len);
         /* key = (U8 *)HePV(entry, key_len); */
         val = hv_iterval(hash, entry);
@@ -2611,6 +2739,62 @@ _xs_from_json(SV * self, SV * data, SV * error_msg_ref, SV * error_data_ref, SV 
     OUTPUT:
     RETVAL
 
+SV *
+has_deserialize(...)
+ CODE:
+    items = items;
+    RETVAL = has_jsonevt();
+ OUTPUT:
+    RETVAL
+
+SV *
+deserialize(SV * data, ...)
+    ALIAS:
+        JSON::DWIW::load = 1
+
+    PREINIT:
+    SV * self = Nullsv;
+    SV * rv;
+
+    CODE:
+    if (items > 1) {
+        self = (SV *)ST(1);
+    }
+    
+    /* avoid compiler warnings about unused variable */
+    ix = ix;
+
+    rv = deserialize_json_sv(self, data);
+
+    RETVAL = rv;
+
+    OUTPUT:
+    RETVAL
+
+SV *
+deserialize_file(SV * file, ...)
+    ALIAS:
+        JSON::DWIW::load_file = 1
+
+    PREINIT:
+    SV * self = Nullsv;
+    SV * rv;
+
+    CODE:
+    if (items > 1) {
+        self = (SV *)ST(1);
+    }
+    
+    /* avoid compiler warnings about unused variable */
+    ix = ix;
+
+    rv = do_json_parse_file(self, file);
+
+    RETVAL = rv;
+
+    OUTPUT:
+    RETVAL
+
 
 SV *
 _xs_to_json(SV * self, SV * data, SV * error_msg_ref, SV * error_data_ref, SV * stats_ref)
@@ -2817,7 +3001,7 @@ bytes_to_code_points(SV *, SV * bytes)
     STRLEN pos = 0;
     I32 max_i;
     SV * sv = NULL;
-    STRLEN i;
+    I32 i;
     SV ** element;
 
     CODE:
@@ -2890,5 +3074,10 @@ _check_scalar(SV *, SV * the_scalar)
  OUTPUT:
  RETVAL
 
-
+SV *
+skip_deserialize_file()
+ CODE:
+ RETVAL = &PL_sv_yes;
+ OUTPUT:
+ RETVAL
 

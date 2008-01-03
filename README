@@ -176,6 +176,13 @@ METHODS
 
      Aliases: fromJson, fromJSON, jsonToObj
 
+  deserialize($json_str, \%options)
+    Experimental new function, use at your own risk. Converts from JSON to
+    Perl. This function is a rewrite from the ground up of from_json. It is
+    not yet garanteed to be feature/bug compatible with from_json. It is
+    faster than any Perl module I've seen for deserializing (faster than the
+    corresponding function in JSON::XS).
+
   from_json_file
      Returns the Perl data structure for the JSON object in the given
      file.  Currently, this method slurps in the whole file, then
@@ -316,5 +323,5 @@ SEE ALSO
      L<JSON::Syck> (included in L<YAML::Syck>)
 
 VERSION
-    0.19
+    0.20
 
