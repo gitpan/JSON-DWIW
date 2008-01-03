@@ -1,5 +1,11 @@
+Version 0.21
+    * Fix compile problem where I left a custom OPTIMIZE entry in
+      Makefile.PL when testing
+
 Version 0.20
-    * 
+    * Added deserialize() function and documented it
+    * Added deserialize_file() function, but left it undocumented and
+      skip its tests
 
 Version 0.19
     * Added fix for compiling on hpux

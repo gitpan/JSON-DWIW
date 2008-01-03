@@ -1,7 +1,7 @@
 # Creation date: 2007-02-19 16:54:44
 # Authors: don
 #
-# Copyright (c) 2007 Don Owens <don@regexguy.com>.  All rights reserved.
+# Copyright (c) 2007-2008 Don Owens <don@regexguy.com>.  All rights reserved.
 #
 # This is free software; you can redistribute it and/or modify it under
 # the Perl Artistic license.  You should have received a copy of the
@@ -46,9 +46,6 @@ JSON::DWIW - JSON converter that Does What I Want
               var3 => $false_value, };
  my $str = JSON::DWIW->to_json($data);
 
- use JSON::DWIW qw(:all);
- my $data = from_json($json_str);
- my $str = to_json($data);
 
 =head1 DESCRIPTION
 
@@ -140,7 +137,7 @@ require DynaLoader;
 Exporter::export_ok_tags('all');
 
 # change in POD as well!
-our $VERSION = '0.20';
+our $VERSION = '0.21';
 
 {
     package JSON::DWIW::Exporter;
@@ -389,8 +386,6 @@ sub serialize {
 
      my ($data, $error_msg) = from_json($json_str)
 
-     my $data = from_json($json_str, { use_exceptions => 1 })
-
 
  Aliases: fromJson, fromJSON, jsonToObj
 
@@ -458,10 +453,16 @@ sub from_json {
 
 Experimental new function, use at your own risk.  Converts from
 JSON to Perl.  This function is a rewrite from the ground up of
-from_json.  It is not yet garanteed to be feature/bug compatible
+from_json.  It is not yet guaranteed to be feature/bug compatible
 with from_json.  It is faster than any Perl module I've seen for
-deserializing (faster than the corresponding function in
-JSON::XS).
+deserializing in my benchmarks (faster than the corresponding
+function in JSON::XS).
+
+This function should not be called as a method (for performance
+reasons).  Unlike from_json(), it returns a single value, the
+data structure resulting from the conversion.  If the return
+value is undef, check the result of the get_error_string()
+function/method to see if an error is defined.
 
 =cut
 
@@ -856,7 +857,7 @@ PURPOSE.
 
 =head1 VERSION
 
-0.20
+0.21
 
 =cut
 

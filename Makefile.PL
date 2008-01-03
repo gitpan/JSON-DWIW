@@ -51,7 +51,7 @@ my $args = {
             EXE_FILES => [],
             PREREQ_PM => {
                          },
-            OPTIMIZE => '-Wall -O3 -fno-non-lvalue-assign -g',
+            # OPTIMIZE => '-Wall -O3 -fno-non-lvalue-assign -g',
            };
 
 if ($use_jsonevt) {
