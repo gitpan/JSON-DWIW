@@ -18,7 +18,7 @@
 
 */
 
-/* $Header: /repository/projects/libjsonevt/jsonevt_private.h,v 1.22 2008/01/03 04:40:18 don Exp $ */
+/* $Header: /repository/projects/libjsonevt/jsonevt_private.h,v 1.26 2008/03/26 04:31:30 don Exp $ */
 
 #include <string.h>
 
@@ -34,6 +34,7 @@ struct context_flags_struct {
     int pad:7;
 };
 
+/*
 struct json_extern_ctx {
     char * error;
     uint error_byte_pos;
@@ -72,6 +73,66 @@ struct json_extern_ctx {
     uint options;
     uint bad_char_policy;
 };
+*/
+
+typedef struct json_extern_ctx json_context;
+
+struct json_extern_ctx {
+    char * buf;
+    uint len;
+    uint pos;
+    uint char_pos;
+
+    char * error;
+    uint error_byte_pos;
+    uint error_char_pos;
+    uint error_line;
+    uint error_byte_col;
+    uint error_char_col;
+    void * cb_data;
+    json_string_cb string_cb;
+    json_array_begin_cb begin_array_cb;
+    json_array_end_cb end_array_cb;
+    json_array_begin_element_cb begin_array_element_cb;
+    json_array_end_element_cb end_array_element_cb;
+    json_hash_begin_cb begin_hash_cb;
+    json_hash_end_cb end_hash_cb;
+    json_hash_begin_entry_cb begin_hash_entry_cb;
+    json_hash_end_entry_cb end_hash_entry_cb;
+    json_number_cb number_cb;
+    json_bool_cb bool_cb;
+    json_null_cb null_cb;
+    json_comment_cb comment_cb;
+
+    uint string_count;
+    uint longest_string_bytes;
+    uint longest_string_chars;
+    uint number_count;
+    uint bool_count;
+    uint null_count;
+    uint hash_count;
+    uint array_count;
+    uint deepest_level;
+    uint line;
+    uint byte_count;
+    uint char_count;
+
+    uint options;
+    uint bad_char_policy;
+
+    uint cur_char;
+    uint cur_char_len;
+    uint cur_byte_pos;
+    uint cur_char_pos;
+    uint cur_line;
+    uint cur_byte_col;
+    uint cur_char_col;
+
+    struct context_flags_struct flags;
+    jsonevt_ctx * ext_ctx;
+};
+
+/*
 
 typedef struct {
     char * buf;
@@ -107,6 +168,7 @@ typedef struct {
     struct context_flags_struct flags;
     jsonevt_ctx * ext_ctx;
 } json_context;
+*/
 
 struct str_flags_struct {
     int using_orig:1;
@@ -124,17 +186,20 @@ typedef struct {
 
 #define JSON_DO_DEBUG 0
 
-#if JSON_DO_DEBUG
-#define JSON_DEBUG(...) (printf("%s (%d) - ", __FILE__, __LINE__), printf(__VA_ARGS__), printf("\n"), fflush(stdout))
+#if JSON_DO_DEBUG && defined(JSONEVT_HAVE_FULL_VARIADIC_MACROS)
+#define JSON_DEBUG(...) printf("in %s, %s (%d) - ", __func__, __FILE__, __LINE__); \
+    printf(__VA_ARGS__);                                                \
+    printf("\n"); fflush(stdout)
 #else
-#define JSON_DEBUG(...) ;
+/* FIXME: make this work under compilers not supporting variadic macros */
+#define JSON_DEBUG(...)
 #endif
 
-#if 0
+#if 0 && defined(JSONEVT_HAVE_FULL_VARIADIC_MACROS)
 #define PDB(...) fprintf(stderr, "in %s, line %d of %s: ", __func__, __LINE__, __FILE__); \
     fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n"); fflush(stderr)
 #else
-#define PDB(...)
+#define PDB
 #endif
 
 #ifdef JSONEVT_ON_WINDOWS
@@ -147,12 +212,28 @@ typedef struct {
 #define _CRT_SECURE_NO_WARNINGS
 #endif
 
+
+
 #define UNLESS(stuff) if (! stuff)
 
 #define BUF_EQ(buf1, buf2, len) ( strncmp(buf1, buf2, len) == 0 )
 #define MEM_EQ(buf1, buf2, len) ( memcmp(buf1, buf2, len) == 0 )
 
+#define HEX_NIBBLE_TO_INT(nc) \
+    ( nc >= '0' && nc <= '9' ? (int)(nc - '0') :                        \
+        ( nc >= 'a' && nc <= 'f' ? (int)(nc - 'a' + 10) :               \
+            ( nc >= 'A' && nc <= 'F' ? (int)(nc - 'A' + 10) : -1  )     \
+          )                                                             \
+      )
+
+
 #define STATIC_BUF_SIZE 32
+
+#define ZERO_MEM(buf, buf_size) JSON_DEBUG("ZERO_MEM: buf=%p, size=%u", buf, buf_size); \
+    memzero(buf, buf_size)
+#define MEM_CPY(dst_buf, src_buf, size) JSON_DEBUG("MEM_CPY: dst=%p, src=%p, size=%u", \
+        (dst_buf), (src_buf), (size));                                  \
+    memcpy(dst_buf, src_buf, size)
 
 /* linefeed or line separator */
 #define JSON_IS_END_OF_LINE(ch) ( (ch) == 0x0a || (ch) == 0x2028)
@@ -176,7 +257,7 @@ typedef struct {
 #define CUR_BUF(c) (&c->buf[c->pos])
 #define BUF_POS(c) ( (c)->pos )
 #define BYTES_LEFT(c) ((c)->len - (c)->pos)
-#define INIT_JSON_STR(s) ( memzero(s, sizeof(json_str)) )
+#define INIT_JSON_STR(s) ( ZERO_MEM(s, sizeof(json_str)) )
 
 #define INCR_DATA_DEPTH(ctx, level) if (level > (ctx)->ext_ctx->deepest_level) \
         { (ctx)->ext_ctx->deepest_level = level; }
@@ -188,15 +269,19 @@ typedef struct {
         { (ctx)->ext_ctx->longest_string_chars = len; }
 
 
-#define CLEAR_JSON_STR(s) JSON_DEBUG("CLEAR_JSON_STR() called"); \
-    if (! (USING_ORIG_BUF(s) || USING_STACK_BUF(s)) ) { free((void *)((s)->buf)); (s)->buf = NULL; }
+#define CLEAR_JSON_STR(s) JSON_DEBUG("CLEAR_JSON_STR() called: buf=%p, len=%u", (s)->buf, (s)->len); \
+    if (! (USING_ORIG_BUF(s) || USING_STACK_BUF(s)) ) { JSON_DEBUG("CLEAR_JSON_STR() - calling free(%p)", (s)->buf); free((void *)((s)->buf)); (s)->buf = NULL; } JSON_DEBUG("CLEAR_JSON_STR() completed: buf=%p, len=%u", (s)->buf, (s)->len)
 
-#define INIT_JSON_STR_STATIC_BUF(s, s_buf, s_len, st_buf, st_buf_len) \
-    ( memzero((void *)(s), sizeof(json_str)), (s)->flags.using_orig = 1,  \
-        (s)->buf = (s_buf), (s)->len = s_len,\
-        (s)->stack_buf = st_buf, (s)->stack_buf_len = st_buf_len )
+#define INIT_JSON_STR_STATIC_BUF(s, orig_buf, orig_len, st_buf, st_buf_len) \
+    ZERO_MEM((void *)(s), sizeof(json_str)); (s)->flags.using_orig = 1;  \
+    (s)->buf = (orig_buf); (s)->len = orig_len;                         \
+    (s)->stack_buf = st_buf; (s)->stack_buf_len = st_buf_len;           \
+    JSON_DEBUG("INIT_JSON_STR_STATIC_BUF() called, orig_buf=%p, orig_len=%u", orig_buf, orig_len)
 
-#define ALLOC_NEW_BUF(s, size) JSON_DEBUG("ALLOC_NEW_BUF() called for size %u", size); (s)->buf = (char *)malloc(size); (s)->len = size
+#define ALLOC_NEW_BUF(s, size) (s)->buf = (char *)malloc(size); \
+                                  (s)->len = size; \
+                                  JSON_DEBUG("ALLOC_NEW_BUF() called for size %u, returning %p", \
+                                      size, (s)->buf);
 
 #define DO_REALLOC(buf, size) (buf ? realloc(buf, size) : malloc(size))
 #define REALLOC_BUF(s, size) if (USING_STACK_BUF(s)) { switch_from_static_buf(s, size); } else { \
@@ -213,8 +298,10 @@ typedef struct {
             (SWITCH_TO_DYNAMIC(s), REALLOC_BUF((s), min_size)) : REALLOC_BUF((s), min_size)) : 0)
             */
 
-#define APPEND_BYTES(s, bytes, len) GROW_JSON_STR(s, len);          \
-    memcpy(&((s)->buf[(s)->pos]), bytes, len); (s)->pos += len
+#define APPEND_BYTES(s, bytes, len) GROW_JSON_STR(s, (s)->pos + len + 1); \
+    MEM_CPY(&((s)->buf[(s)->pos]), bytes, len); (s)->pos += len; \
+    JSON_DEBUG("APPEND_BYTES(): appended %u bytes to %p, starting at %p", \
+        len, (s)->buf, &((s)->buf[(s)->pos]) )
 
 #define MAYBE_APPEND_BYTES(s, bytes, len) if (USING_ORIG_BUF(s)) {      \
         (s)->pos += len; } else { APPEND_BYTES(s, bytes, len); }

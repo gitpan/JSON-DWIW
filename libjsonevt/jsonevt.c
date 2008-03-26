@@ -4,7 +4,7 @@
 
 /*
 
- Copyright (c) 2007 Don Owens <don@regexguy.com>.  All rights reserved.
+ Copyright (c) 2007-2008 Don Owens <don@regexguy.com>.  All rights reserved.
 
  This is free software; you can redistribute it and/or modify it under
  the Perl Artistic license.  You should have received a copy of the
@@ -18,7 +18,7 @@
 
 */
 
-/* $Header: /repository/projects/libjsonevt/jsonevt.c,v 1.30 2008/01/03 04:40:18 don Exp $ */
+/* $Header: /repository/projects/libjsonevt/jsonevt.c,v 1.37 2008/03/26 04:31:30 don Exp $ */
 
 /*
 #if defined(__WIN32) || defined(WIN32) || defined(_WIN32)
@@ -59,7 +59,24 @@ typedef unsigned int uint;
 
 #define memzero(buf, size) memset(buf, 0, size)
 
+static char * vset_error(json_context * ctx, char * file, uint line, char * fmt, va_list ap);
+
+#ifdef JSONEVT_HAVE_VARIADIC_MACROS
 #define SET_ERROR(ctx,fmt,...) set_error(ctx, __FILE__, __LINE__, fmt, ## __VA_ARGS__)
+#else
+static char *
+SET_ERROR(json_context * ctx, char * fmt, ...) {
+    va_list ap;
+    char * error;
+
+    va_start(ap, fmt);
+    error = vset_error(ctx, "", 0, fmt, ap);
+    va_end(ap);
+
+    return error;
+}
+#endif
+
 #define ERROR_IS_SET(ctx) ((ctx)->ext_ctx->error)
 #define BREAK_ON_ERROR(ctx) if (ERROR_IS_SET(ctx)) { break; }
 
@@ -288,6 +305,10 @@ static int
 vasprintf(char **ret, const char *fmt, va_list ap) {
     char buf[4096];
     int rv = 0;
+
+    UNLESS (ret) {
+        return 0;
+    }
     
     *ret = NULL;
 
@@ -306,7 +327,7 @@ vasprintf(char **ret, const char *fmt, va_list ap) {
         return -1;
     }
 
-    memcpy(*ret, buf, rv + 1);
+    MEM_CPY(*ret, buf, rv + 1);
     
     (*ret)[rv] = '\x00'; /* in case the original buf was not large enough */
 
@@ -328,8 +349,7 @@ asprintf(char ** ret, const char * fmt, ...) {
 #endif
 
 static char *
-set_error(json_context * ctx, char * file, uint line, char * fmt, ...) {
-    va_list ap;
+vset_error(json_context * ctx, char * file, uint line, char * fmt, va_list ap) {
     char * error = NULL;
     char * loc = NULL;
     char * msg = NULL;
@@ -359,13 +379,11 @@ set_error(json_context * ctx, char * file, uint line, char * fmt, ...) {
 #endif
 #endif
 
-    va_start(ap, fmt);
     msg_len = vasprintf(&msg, fmt, ap);
-    va_end(ap);
 
     error = (char *)malloc(loc_len + msg_len + 1);
-	memcpy(error, loc, loc_len);
-    memcpy(&error[loc_len], msg, msg_len);
+	MEM_CPY(error, loc, loc_len);
+    MEM_CPY(&error[loc_len], msg, msg_len);
     error[loc_len + msg_len] = '\x00';
 
     ctx->ext_ctx->error = error;
@@ -381,10 +399,17 @@ set_error(json_context * ctx, char * file, uint line, char * fmt, ...) {
     return error;
 }
 
-#ifdef JSONEVT_ON_WINDOWS
+static char *
+set_error(json_context * ctx, char * file, uint line, char * fmt, ...) {
+    va_list ap;
+    char * error;
 
-#else
-#endif
+    va_start(ap, fmt);
+    error = vset_error(ctx, file, line, fmt, ap);
+    va_end(ap);
+
+    return error;
+}
 
 static int
 eat_whitespace(json_context *ctx, int commas_are_whitespace, uint line) {
@@ -522,12 +547,16 @@ switch_from_static_buf(json_str * s, uint new_size) {
     uint orig_len = s->len;
 
     new_size = new_size > orig_len ? new_size : orig_len;
-
-    JSON_DEBUG("-- switching to heap buf");
+    if (new_size == 0) {
+        new_size = 8;
+    }
 
     ALLOC_NEW_BUF(s, new_size);
-	memcpy(s->buf, orig_buf, orig_len);
+	MEM_CPY(s->buf, orig_buf, orig_len);
     s->flags.using_orig = 0;
+
+    JSON_DEBUG("-- switched to heap buf (%p, len %u), orig_buf is %p, len %u, stack_buf %p, len %u",
+        s->buf, new_size, orig_buf, orig_len, s->stack_buf, s->stack_buf_len);
     
     return 1;
 }
@@ -550,7 +579,7 @@ switch_to_dynamic_buf(json_str * s) {
             ALLOC_NEW_BUF(s, orig_len);
         }
 
-        memcpy(s->buf, orig_buf, orig_len);
+        MEM_CPY(s->buf, orig_buf, orig_len);
         s->flags.using_orig = 0;
     }
 
@@ -649,17 +678,25 @@ estimate_json_string_size(char * buf, uint max_len, uint boundary_char, uint * e
     uint size = 0;
     uint bytes_this_char = 0;
 
+    JSON_DEBUG("max_len=%u", max_len);
+
+    if (end_quote_pos) {
+        *end_quote_pos = 0;
+    }
+
     for (i = 0; i < max_len; i++) {
         if (size < max_len) {
             if (buf[size] == boundary_char) {
                 if (end_quote_pos) {
                     *end_quote_pos = size;
+                    JSON_DEBUG("set end_quote_pos=%u", *end_quote_pos);
                 }
                 break;
             }
             size++;
         }
         else {
+            JSON_DEBUG("returning size %u", size);
             return size;
         }
 
@@ -691,6 +728,7 @@ estimate_json_string_size(char * buf, uint max_len, uint boundary_char, uint * e
 
     }
 
+    JSON_DEBUG("returning size %u", size);
     return size;
 }
 
@@ -805,6 +843,13 @@ parse_word(json_context * ctx, int is_identifier, uint level, uint flags) {
         return parse_number(ctx, level, flags);
     }
 
+    /* FIXME: check "strict" option here and error out if set and this is a hash key */
+
+    /* FIXME: check identifiers by section 5.16 of version 3.0 of unicode standard, 
+       but allow $ and _
+    */
+
+
     start_pos = CUR_POS(ctx);
     start_buf = &ctx->buf[start_pos];
 
@@ -812,7 +857,7 @@ parse_word(json_context * ctx, int is_identifier, uint level, uint flags) {
         ( (this_char >= '0' && this_char <= '9')
             || (this_char >= 'A' && this_char <= 'Z')
             || (this_char >= 'a' && this_char <= 'z')
-            || this_char == '_'
+            || this_char == '_' || this_char == '$'
           )) {
             this_char = NEXT_CHAR(ctx);
     }
@@ -835,6 +880,7 @@ parse_word(json_context * ctx, int is_identifier, uint level, uint flags) {
 
 
     if (is_identifier) {
+
         /* treat as if it were a string */
         if (ctx->string_cb) {
             DO_CB_WITH_RET(ctx, "string",
@@ -873,9 +919,21 @@ parse_word(json_context * ctx, int is_identifier, uint level, uint flags) {
     return 0;
 }
 
+#define GET_HEX_NIBBLE(ctx, nv, u_bytes, i, this_char, error_msg)       \
+                  this_char = NEXT_CHAR(ctx);                           \
+                  nv = HEX_NIBBLE_TO_INT(this_char);                    \
+                  if (nv == -1) {                                       \
+                      SET_ERROR(ctx, error_msg);                        \
+                      CLEAR_JSON_STR(&str);                             \
+                      return 0;                                         \
+                  }                                                     \
+                  u_bytes[i] = nv;                                      \
+                  i++;
+
 static int
 parse_string(json_context * ctx, uint level, uint flags) {
     uint this_char;
+    int nibble_val;
     uint quote_char;
     uint char_count = 0;
     uint buf_size = 0;
@@ -883,9 +941,9 @@ parse_string(json_context * ctx, uint level, uint flags) {
     uint end_quote_pos = 0;
     char u_bytes[4];
     uint u_bytes_len;
-    uint multiplier;
+    /* uint multiplier; */
     int i;
-    uint this_val;
+    /* uint this_val; */
     uint first_time = 1;
     char * orig_buf = NULL;
     char stack_buf[STATIC_BUF_SIZE];
@@ -893,7 +951,7 @@ parse_string(json_context * ctx, uint level, uint flags) {
 
     SETUP_TRACE;
 
-    memzero((void *)&str, sizeof(json_str));
+    ZERO_MEM((void *)&str, sizeof(json_str));
 
     this_char = PEEK_CHAR(ctx);
     if (this_char == '"' || this_char == '\'') {
@@ -937,6 +995,8 @@ parse_string(json_context * ctx, uint level, uint flags) {
 
             if (ctx->string_cb) {
                 SETUP_TRACE;
+                JSON_DEBUG("about to call string callback with buf %p, len %u, flags %#x, level %u",
+                    str.buf, str.pos, flags, level);
                 cb_rv = ctx->string_cb(ctx->cb_data, str.buf, str.pos, flags, level);
                 SETUP_TRACE;
             }
@@ -964,118 +1024,71 @@ parse_string(json_context * ctx, uint level, uint flags) {
             this_char = NEXT_CHAR(ctx);
             SWITCH_FROM_STATIC(&str);
 
+            /* FIXME: should \0 be accepted, as in the ECMA standard? */
             switch (this_char) {
-              case '\\':
-              case '/':
-              case '"':
-              case '\'':
+              case '\\': /* 0x5c */
+              case '/':  /* 0x2f */
+              case '"':  /* 0x22 */
+              case '\'': /* 0x27 */
                   /* treat these as literals */
                   break;
 
-              case 'b':
+              case 'b': /* 0x62 */
                   this_char = 0x08; /* backspace */
                   break;
-
-              case 'f':
-                  this_char = 0x0c; /* form feed */
-                  break;
                   
-
-              case 'n':
+              case 'n': /* 0x6e */
                   this_char = 0x0a; /* line feed */
                   break;
 
-              case 'r':
+              case 'v': /* 0x76 */
+                  this_char = 0x0b; /* vertical tab */
+                  break;
+
+              case 'f': /* 0x66 */
+                  this_char = 0x0c; /* form feed */
+                  break;
+
+              case 'r': /* 0x72 */
                   this_char = 0x0d; /* carriage return */
                   break;
 
-              case 't':
+              case 't': /* 0x74 */
                   this_char = 0x09; /* tab */
                   break;
 
-              case 'u':
-                  /* unicode escape */
-                  for (i = 0; i < 4; i++) {
-                      this_char = NEXT_CHAR(ctx);
-                      switch (this_char) {
-                        case 'F':
-                        case 'f':
-                            this_val = 15;
-                            break;
-                        case 'E':
-                        case 'e':
-                            this_val = 14;
-                            break;
-                        case 'D':
-                        case 'd':
-                            this_val = 13;
-                            break;
-                        case 'C':
-                        case 'c':
-                            this_val = 12;
-                            break;
-                        case 'B':
-                        case 'b':
-                            this_val = 11;
-                            break;
-                        case 'A':
-                        case 'a':
-                            this_val = 10;
-                            break;
-                        case '9':
-                            this_val = 9;
-                            break;
-                        case '8':
-                            this_val = 8;
-                            break;
-                        case '7':
-                            this_val = 7;
-                            break;
-                        case '6':
-                            this_val = 6;
-                            break;
-                        case '5':
-                            this_val = 5;
-                            break;
-                        case '4':
-                            this_val = 4;
-                            break;
-                        case '3':
-                            this_val = 3;
-                            break;
-                        case '2':
-                            this_val = 2;
-                            break;
-                        case '1':
-                            this_val = 1;
-                            break;
-                        case '0':
-                            this_val = 0;
-                            break;
-                            
-                        default:
-                            /* error */
-                            /* FIXME: clean up str here */
-                            SET_ERROR(ctx, "bad unicode character specification");
-                            CLEAR_JSON_STR(&str);
-                            return 0;
-                            break;
-                      }
+              case 'x': /* 0x78 */
+                  /* hex escape sequence */
 
-                      u_bytes[i] = this_val;
-                      /* code_point = this_val * (16 ** 3); */
-                  }
+#define BHE_MSG "bad hex escape character specification"
 
-                  this_char = 0;
-                  multiplier = 1;
-                  for (i = 3; i >= 0; i--) {
-                      this_char += u_bytes[i] * multiplier;
-                      multiplier *= 16;
-                  }
+                  i = 0;
+                  GET_HEX_NIBBLE(ctx, nibble_val, u_bytes, i, this_char, BHE_MSG);
+                  GET_HEX_NIBBLE(ctx, nibble_val, u_bytes, i, this_char, BHE_MSG);
+
+                  this_char = 16 * u_bytes[0] + u_bytes[1];
+
                   break;
-            
+
+              case 'u': /* 0x75 */
+                  /* unicode escape sequence */
+
+#define BUE_MSG "bad unicode character specification"
+
+                  i = 0;
+                  GET_HEX_NIBBLE(ctx, nibble_val, u_bytes, i, this_char, BUE_MSG);
+                  GET_HEX_NIBBLE(ctx, nibble_val, u_bytes, i, this_char, BUE_MSG);
+                  GET_HEX_NIBBLE(ctx, nibble_val, u_bytes, i, this_char, BUE_MSG);
+                  GET_HEX_NIBBLE(ctx, nibble_val, u_bytes, i, this_char, BUE_MSG);
+
+                  this_char = 4096 * u_bytes[0] + 256 * u_bytes[1] + 16 * u_bytes[2] + u_bytes[3];
+
+                  break;
+
+
               default:
                   /* unrecognized escape, send it through literally */
+                  /* FIXME: check "strict" option here and error out if set */
                   break;
             }
 
@@ -1331,7 +1344,7 @@ parse_value(json_context * ctx, uint level, uint flags) {
 jsonevt_ctx *
 jsonevt_new_ctx() {
     jsonevt_ctx * ctx = (jsonevt_ctx *)malloc(sizeof(jsonevt_ctx));
-    memzero((void *)ctx, sizeof(jsonevt_ctx));
+    ZERO_MEM((void *)ctx, sizeof(jsonevt_ctx));
 
     JSON_DEBUG("allocated new jsonevt_ctx %p", ctx);
     
@@ -1350,6 +1363,63 @@ jsonevt_free_ctx(jsonevt_ctx * ext_ctx) {
         free(ext_ctx);
         JSON_DEBUG("deallocated jsonevt_ctx %p", ext_ctx);
     }
+}
+
+void
+jsonevt_reset_ctx(jsonevt_ctx * ext_ctx) {
+    json_string_cb string_cb;
+    json_array_begin_cb begin_array_cb;
+    json_array_end_cb end_array_cb;
+    json_array_begin_element_cb begin_array_element_cb;
+    json_array_end_element_cb end_array_element_cb;
+    json_hash_begin_cb begin_hash_cb;
+    json_hash_end_cb end_hash_cb;
+    json_hash_begin_entry_cb begin_hash_entry_cb;
+    json_hash_end_entry_cb end_hash_entry_cb;
+    json_number_cb number_cb;
+    json_bool_cb bool_cb;
+    json_null_cb null_cb;
+    json_comment_cb comment_cb;
+
+    UNLESS (ext_ctx) {
+        return;
+    }
+
+    string_cb = ext_ctx->string_cb;
+    begin_array_cb = ext_ctx->begin_array_cb;
+    end_array_cb = ext_ctx->end_array_cb;
+    begin_array_element_cb = ext_ctx->begin_array_element_cb;
+    end_array_element_cb = ext_ctx->end_array_element_cb;
+    begin_hash_cb = ext_ctx->begin_hash_cb;
+    end_hash_cb = ext_ctx->end_hash_cb;
+    begin_hash_entry_cb = ext_ctx->begin_hash_entry_cb;
+    end_hash_entry_cb = ext_ctx->end_hash_entry_cb;
+    number_cb = ext_ctx->number_cb;
+    bool_cb = ext_ctx->bool_cb;
+    null_cb = ext_ctx->null_cb;
+    comment_cb = ext_ctx->comment_cb;
+
+    if (ext_ctx->error) {
+        free(ext_ctx->error);
+        ext_ctx->error = NULL;
+    }
+
+    ZERO_MEM((void *)ext_ctx, sizeof(*ext_ctx)); 
+
+    ext_ctx->string_cb = string_cb;
+    ext_ctx->begin_array_cb = begin_array_cb;
+    ext_ctx->end_array_cb = end_array_cb;
+    ext_ctx->begin_array_element_cb = begin_array_element_cb;
+    ext_ctx->end_array_element_cb = end_array_element_cb;
+    ext_ctx->begin_hash_cb = begin_hash_cb;
+    ext_ctx->end_hash_cb = end_hash_cb;
+    ext_ctx->begin_hash_entry_cb = begin_hash_entry_cb;
+    ext_ctx->end_hash_entry_cb = end_hash_entry_cb;
+    ext_ctx->number_cb = number_cb;
+    ext_ctx->bool_cb = bool_cb;
+    ext_ctx->null_cb = null_cb;
+    ext_ctx->comment_cb = comment_cb;
+
 }
 
 char *
@@ -1692,17 +1762,20 @@ check_bom(json_context * ctx) {
 
 int
 jsonevt_parse(jsonevt_ctx * ext_ctx, char * buf, uint len) {
-    json_context ctx;
+    /* json_context ctx; */
+
+    jsonevt_ctx * ctx = ext_ctx;
     int rv = 0;
     
-    memzero((void *)&ctx, sizeof(ctx));
+    /* memzero((void *)&ctx, sizeof(ctx)); */
 
-    ctx.buf = buf;
-    ctx.len = len;
-    ctx.pos = 0;
-    ctx.char_pos = 0;
-    ctx.cur_line = 1;
+    ctx->buf = buf;
+    ctx->len = len;
+    ctx->pos = 0;
+    ctx->char_pos = 0;
+    ctx->cur_line = 1;
 
+    /*
     ctx.cb_data = ext_ctx->cb_data;
 
     ctx.string_cb = ext_ctx->string_cb;
@@ -1723,23 +1796,26 @@ jsonevt_parse(jsonevt_ctx * ext_ctx, char * buf, uint len) {
 
     ctx.ext_ctx = ext_ctx;
 
-    if (check_bom(&ctx)) {
-        rv = parse_value(&ctx, 0, 0);
-        JSON_DEBUG("pos=%d, len=%d", ctx.pos, ctx.len);
-        if (rv && ctx.pos < ctx.len) {
-            JSON_DEBUG("HERE");
-            EAT_WHITESPACE(&ctx, 0);
-            if (ctx.pos < ctx.len) {
+    */
+
+    ctx->ext_ctx = ctx;
+
+    if (check_bom(ctx)) {
+        rv = parse_value(ctx, 0, 0);
+        JSON_DEBUG("pos=%d, len=%d", ctx->pos, ctx->len);
+        if (rv && ctx->pos < ctx->len) {
+            EAT_WHITESPACE(ctx, 0);
+            if (ctx->pos < ctx->len) {
                 /* garbage at end */
-                SET_ERROR(&ctx, "syntax error - garbage at end of JSON");
+                SET_ERROR(ctx, "syntax error - garbage at end of JSON");
                 rv = 0;
             }
         }
     }
 
-    ext_ctx->line = ctx.cur_line;
-    ext_ctx->byte_count = ctx.cur_byte_pos;
-    ext_ctx->char_count = ctx.cur_char_pos;
+    ext_ctx->line = ctx->cur_line;
+    ext_ctx->byte_count = ctx->cur_byte_pos;
+    ext_ctx->char_count = ctx->cur_char_pos;
 
     return rv;
 }
@@ -1754,7 +1830,7 @@ jsonevt_parse_file(jsonevt_ctx * ext_ctx, char * file) {
     size_t file_size;
     struct stat file_info;
 
-    memzero((void *)&ctx, sizeof(ctx));
+    ZERO_MEM((void *)&ctx, sizeof(ctx));
     ctx.ext_ctx = ext_ctx;
 
     fd = open(file, O_RDONLY, 0);
@@ -1785,7 +1861,7 @@ jsonevt_parse_file(jsonevt_ctx * ext_ctx, char * file) {
     size_t file_size;
     size_t amtread;
 
-    memzero((void *)&ctx, sizeof(ctx));
+    ZERO_MEM((void *)&ctx, sizeof(ctx));
 
     fp = fopen(file, "r");
     UNLESS (fp) {

@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2007 Don Owens <don@regexguy.com>.  All rights reserved.
+Copyright (c) 2007-2008 Don Owens <don@regexguy.com>.  All rights reserved.
 
  This is free software; you can redistribute it and/or modify it under
  the Perl Artistic license.  You should have received a copy of the
@@ -74,11 +74,11 @@ extern "C" {
 #define MOD_NAME "JSON::DWIW"
 #define MOD_VERSION VERSION
 
-#ifdef __GNUC__
+#ifdef JSONEVT_HAVE_FULL_VARIADIC_MACROS
 #if JSON_DO_DEBUG
 #define JSON_DEBUG(...) printf("%s (%d) - ", __FILE__, __LINE__); printf(__VA_ARGS__); printf("\n"); fflush(stdout)
 #else
-#define JSON_DEBUG(...)
+#define JSON_DEBUG
 #endif
 #else
 
@@ -96,11 +96,11 @@ JSON_DEBUG(char *fmt, ...) {
 }
 #endif
 
-#ifdef __GNUC__
+#ifdef JSONEVT_HAVE_FULL_VARIADIC_MACROS
 #if JSON_DO_TRACE
 #define JSON_TRACE(...) printf("%s (%d) - ", __FILE__, __LINE__); printf(__VA_ARGS__); printf("\n"); fflush(stdout)
 #else
-#define JSON_TRACE(...)
+#define JSON_TRACE
 #endif
 #else
 
@@ -758,9 +758,9 @@ json_eat_whitespace(json_context *ctx, UV flags) {
     JSON_DEBUG("json_eat_whitespace: ending pos %d", ctx->pos);
 }
 
-#define JsAppendBuf(str, ctx, start_pos, offset) ( str ? (sv_catpvn(str, ctx->data + start_pos, ctx->pos - start_pos - offset), str) : newSVpv(ctx->data + start_pos, ctx->pos - start_pos - offset) )
+#define JsAppendBuf(str, ctx, start_pos, offset) ( str ? (sv_catpvn(str, ctx->data + start_pos, ctx->pos - start_pos - offset), str) : newSVpvn(ctx->data + start_pos, ctx->pos - start_pos - offset) )
 
-#define JsAppendCBuf(str, buf, len) ( str ? (sv_catpvn(str, buf, len), str) : newSVpv(buf, len) )
+#define JsAppendCBuf(str, buf, len) ( str ? (sv_catpvn(str, buf, len), str) : newSVpvn(buf, len) )
 
 static void
 json_eat_digits(json_context *ctx) {
@@ -973,7 +973,7 @@ json_parse_word(json_context *ctx, SV * tmp_str, int is_identifier) {
         if ( (looking_at >= '0' && looking_at <= '9')
             || (looking_at >= 'A' && looking_at <= 'Z')
             || (looking_at >= 'a' && looking_at <= 'z')
-            || looking_at == '_'
+            || looking_at == '_' || looking_at == '$'
              ) {
             JSON_DEBUG("json_parse_word(): got %04x at %d", looking_at, ctx->pos);
 
@@ -1071,6 +1071,29 @@ find_length_of_string(json_context *ctx, UV boundary) {
     return 0;
 }
 
+#define HEX_NIBBLE_TO_INT(nc) \
+    ( nc >= '0' && nc <= '9' ? (int)(nc - '0') :                        \
+        ( nc >= 'a' && nc <= 'f' ? (int)(nc - 'a' + 10) :               \
+            ( nc >= 'A' && nc <= 'F' ? (int)(nc - 'A' + 10) : -1  )     \
+          )                                                             \
+      )
+
+#define GET_HEX_NIBBLE(ctx, nv, u_bytes, i, this_char, error_msg)       \
+                this_char = JsNextCharWithArg(ctx, tmp_uv, tmp_len);    \
+                nv = HEX_NIBBLE_TO_INT(this_char);                      \
+                  if (nv == -1) {                                       \
+                      u_bytes[i] = '\x00';                              \
+                      ctx->error = JSON_PARSE_ERROR(ctx, error_msg, u_bytes); \
+                      if (rv && !tmp_str) {                             \
+                          SvREFCNT_dec(rv);                             \
+                          rv = NULL;                                    \
+                      }                                                 \
+                      return (SV *)&PL_sv_undef;                        \
+                  }                                                     \
+                  u_bytes[i] = nv;                                      \
+                  i++;
+
+
 static SV *
 json_parse_string(json_context *ctx, SV * tmp_str) {
     UV looking_at;
@@ -1089,6 +1112,7 @@ json_parse_string(json_context *ctx, SV * tmp_str) {
     UV tmp_uv;
     STRLEN tmp_len;
     unsigned int start_char_pos = 0;
+    int nibble_val = 0;
 
     unicode_digits[4] = '\x00';
 
@@ -1159,6 +1183,10 @@ json_parse_string(json_context *ctx, SV * tmp_str) {
                 char_buf = "\x0a";
                 break;
 
+              case 'v':
+                  char_buf = "\x0b";
+                  break;
+
             case 'r':
                 char_buf = "\x0d";
                 break;
@@ -1175,6 +1203,9 @@ json_parse_string(json_context *ctx, SV * tmp_str) {
                 char_buf = ctx->data + ctx->pos - 1;
                 break;
 
+              case 'x':
+                  break;
+
             case 'u':
                 break;
                 
@@ -1184,63 +1215,49 @@ json_parse_string(json_context *ctx, SV * tmp_str) {
                 break;
             }
 
+
             if (char_buf) {
                 sv_catpvn(rv, char_buf, 1);
             }
             else {      
                 switch (this_uv) {
+
+#define BHE_MSG "bad hex escape specification \"\\x%s\""
+
+                  case 'x':
+                      i = 0;
+                      GET_HEX_NIBBLE(ctx, nibble_val, unicode_digits, i, this_uv, BHE_MSG);
+                      GET_HEX_NIBBLE(ctx, nibble_val, unicode_digits, i, this_uv, BHE_MSG);
+                      next_uv = JsCurChar(ctx);
+                      this_uv = 16 * unicode_digits[0] + unicode_digits[1];
+
+                      tmp_buf = convert_uv_to_utf8(unicode_digits, this_uv);
+                      UNLESS (SvUTF8(rv)) {
+                          SvUTF8_on(rv);
+                      }
+                      sv_catpvn(rv, (char *)unicode_digits,
+                          PTR2UV(tmp_buf) - PTR2UV(unicode_digits));
+                      break;
+
+#define BUE_MSG "bad unicode character specification \"\\u%s\""
+
                 case 'u':
-                    for (i = 0; i < 4 && ctx->pos < ctx->len; i++) {
-                        this_uv = JsNextCharWithArg(ctx, tmp_uv, tmp_len);
-                        if ( (this_uv >= '0' && this_uv <= '9')
-                            || (this_uv >= 'A' && this_uv <= 'F')
-                            || (this_uv >= 'a' && this_uv <= 'f')
-                             ) {
-                            unicode_digits[i] = (U8)this_uv;
-                        }
-                        else {
-                            unicode_digits[i] = '\x00';
-                            ctx->error =
-                                JSON_PARSE_ERROR(ctx,
-                                    "bad unicode character specification \"\\u%s\"",
-                                    unicode_digits);
-                            if (rv && !tmp_str) {
-                                SvREFCNT_dec(rv);
-                                rv = NULL;
-                            }
-                            return (SV *)&PL_sv_undef;
-                        }
-                    }
+                      i = 0;
+                      GET_HEX_NIBBLE(ctx, nibble_val, unicode_digits, i, this_uv, BUE_MSG);
+                      GET_HEX_NIBBLE(ctx, nibble_val, unicode_digits, i, this_uv, BUE_MSG);
+                      GET_HEX_NIBBLE(ctx, nibble_val, unicode_digits, i, this_uv, BUE_MSG);
+                      GET_HEX_NIBBLE(ctx, nibble_val, unicode_digits, i, this_uv, BUE_MSG);
 
-                    if (i != 4) {
-                        unicode_digits[i] = '\x00';
-                            ctx->error =
-                                JSON_PARSE_ERROR(ctx,
-                                    "bad unicode character specification \"\\u%s\"",
-                                    unicode_digits);
-                        if (rv && !tmp_str) {
-                            SvREFCNT_dec(rv);
-                            rv = NULL;
-                        }
-                        return (SV *)&PL_sv_undef;
-                    }
+                      next_uv = JsCurChar(ctx);
+                      this_uv = 4096 * unicode_digits[0] + 256 * unicode_digits[1]
+                          + 16 * unicode_digits[2] + unicode_digits[3];
 
-                    JSON_DEBUG("found wide char %s\n", unicode_digits);
-
-                    next_uv = JsCurChar(ctx);
-
-                    /* grok_hex() not available in perl 5.6 */
-                    /* grok_len = 4;*/
-                    /* this_uv = grok_hex((char *)unicode_digits, &grok_len, &grok_flags, NULL); */
-                    
-                    sscanf((char *)unicode_digits, "%04"UVxf, &this_uv);
-
-                    tmp_buf = convert_uv_to_utf8(unicode_digits, this_uv);
-                    UNLESS (SvUTF8(rv)) {
-                        SvUTF8_on(rv);
-                        /* sv_utf8_upgrade(rv); */
-                    }
-                    sv_catpvn(rv, (char *)unicode_digits, PTR2UV(tmp_buf) - PTR2UV(unicode_digits));
+                      tmp_buf = convert_uv_to_utf8(unicode_digits, this_uv);
+                      UNLESS (SvUTF8(rv)) {
+                          SvUTF8_on(rv);
+                      }
+                      sv_catpvn(rv, (char *)unicode_digits,
+                          PTR2UV(tmp_buf) - PTR2UV(unicode_digits));
 
                     break;
                     
@@ -2476,6 +2493,16 @@ to_json(self_context * self, SV * data_ref, int indent_level, unsigned int cur_l
     }
     
     data = SvRV(data_ref);
+    if (SvROK(data)) {
+        /* reference to a referrence */
+        sv_catsv(rsv, data_ref);
+        tmp = rsv;
+        rsv = escape_json_str(self, tmp);
+        SvREFCNT_dec(tmp);
+        
+        return rsv;
+    }
+
     type = SvTYPE(data);
 
     switch (type) {
@@ -2512,27 +2539,6 @@ to_json(self_context * self, SV * data_ref, int indent_level, unsigned int cur_l
           SvREFCNT_dec(tmp);
           return rsv;
           break;
-          /*
-          before_len = JsSvLen(rsv);
-          sv_catsv(rsv, data);
-          if (JsSvLen(rsv) == before_len) {
-              sv_catpvn(rsv, "\"\"", 2);
-          }
-          return rsv;
-          break;
-          */
-
-      case SVt_RV:
-        /* reference to a reference */
-        /* FIXME: implement */
-          sv_catsv(rsv, data_ref);
-          tmp = rsv;
-          rsv = escape_json_str(self, tmp);
-          SvREFCNT_dec(tmp);
-
-          /* sv_catpvn(rsv, "\"\"", 2); */
-          return rsv;
-        break;
 
       case SVt_PVAV: /* array */
           JSON_DEBUG("==========> found array ref");
@@ -2711,6 +2717,35 @@ parse_mmap_file(SV * self, SV * file, SV * error_msg_ref) {
 #else
     return &PL_sv_undef;
 #endif
+}
+
+SV *
+get_ref_addr(SV * ref) {
+    SV * addr_str = Nullsv;
+    SV * sv_addr = Nullsv;
+    char * str = Nullch;
+
+    if (SvROK(ref)) {
+        sv_addr = SvRV(ref);
+        str = form("%"UVuf"", PTR2UV((void *)sv_addr));
+        addr_str = newSVpvn(str, strlen(str));
+    }
+    else {
+        return newSV(0);
+    }
+
+    return addr_str;
+}
+
+SV *
+get_ref_type(SV * ref) {
+    UNLESS (SvROK(ref)) {
+        return newSV(0);
+    }
+
+    /* FIXME: complete the type checks here */
+
+    return newSV(0);
 }
 
 
@@ -3080,4 +3115,19 @@ skip_deserialize_file()
  RETVAL = &PL_sv_yes;
  OUTPUT:
  RETVAL
+
+SV *
+get_ref_addr(SV * ref)
+ CODE:
+ RETVAL = get_ref_addr(ref);
+ OUTPUT:
+ RETVAL
+
+SV *
+get_ref_type(SV * ref)
+ CODE:
+ RETVAL = get_ref_type(ref);
+ OUTPUT:
+ RETVAL
+
 

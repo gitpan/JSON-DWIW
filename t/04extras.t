@@ -9,7 +9,7 @@ use Test;
 
 # main
 {
-    BEGIN { plan tests => 22 }
+    BEGIN { plan tests => 24 }
 
     use JSON::DWIW;
 
@@ -21,6 +21,16 @@ use Test;
     ok(ref($data) eq 'HASH' and $data->{var1});
     ok(ref($data) eq 'HASH' and not $data->{var2});
     ok(ref($data) eq 'HASH' and exists($data->{var3}) and not defined($data->{var3}));
+
+    $json_str = '{$var1:true,var2:false,var3:null}';
+    $data = JSON::DWIW->from_json($json_str);
+    ok(ref($data) eq 'HASH' and $data->{'$var1'} and not $data->{var2}
+       and exists($data->{var3}) and not defined($data->{var3}));
+    
+    $json_str = '{_var1_:true,var2:false,var3:null}';
+    $data = JSON::DWIW->from_json($json_str);
+    ok(ref($data) eq 'HASH' and $data->{'_var1_'} and not $data->{var2}
+       and exists($data->{var3}) and not defined($data->{var3}));
 
     # call as subroutine (possible imported)
     $json_str = '{var1:true,var2:false,var3:null}';

@@ -37,6 +37,9 @@ sub MY::postamble {
     return $stuff;
 }
 
+my $clean_str = join(' ', map { File::Spec->catfile('libjsonevt', $_) }
+                     ('*.a', '*.so', '*$(OBJ_EXT)'));
+
 my $args = {
             NAME => 'JSON::DWIW',
             DISTNAME => 'JSON-DWIW',
@@ -51,7 +54,9 @@ my $args = {
             EXE_FILES => [],
             PREREQ_PM => {
                          },
+            clean => { FILES => $clean_str },
             # OPTIMIZE => '-Wall -O3 -fno-non-lvalue-assign -g',
+            # OPTIMIZE => '-O2 -g -Wall',
            };
 
 if ($use_jsonevt) {

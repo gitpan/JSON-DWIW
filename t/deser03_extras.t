@@ -12,7 +12,7 @@ use Test;
     use JSON::DWIW;
 
     if (JSON::DWIW->has_deserialize) {
-        plan tests => 17;
+        plan tests => 19;
     }
     else {
         plan tests => 1;
@@ -23,17 +23,26 @@ use Test;
     }
 
 
-    # bare keys (called as class method)
-    my $json_str = '{var1:true,var2:false,var3:null}';
+    my $json_str;
     my $data;
 
-    # call as subroutine (possibly imported)
+    # bare keys
     $json_str = '{var1:true,var2:false,var3:null}';
     $data = JSON::DWIW::deserialize($json_str);
     ok(ref($data) eq 'HASH');
     ok(ref($data) eq 'HASH' and $data->{var1});
     ok(ref($data) eq 'HASH' and not $data->{var2});
     ok(ref($data) eq 'HASH' and exists($data->{var3}) and not defined($data->{var3}));
+    
+    $json_str = '{$var1:true,var2:false,var3:null}';
+    $data = JSON::DWIW::deserialize($json_str);
+    ok(ref($data) eq 'HASH' and $data->{'$var1'} and not $data->{var2}
+       and exists($data->{var3}) and not defined($data->{var3}));
+    
+    $json_str = '{_var1_:true,var2:false,var3:null}';
+    $data = JSON::DWIW::deserialize($json_str);
+    ok(ref($data) eq 'HASH' and $data->{'_var1_'} and not $data->{var2}
+       and exists($data->{var3}) and not defined($data->{var3}));
 
     # extra commas
     $json_str = '{,"var1":true,,"var2":false,"var3":null,, ,}';

@@ -1,3 +1,11 @@
+Version 0.22
+    * Fixed illegal memory access and warnings from glibc (rt.cpan.org #33121)
+    * Now accept \xHH escape as in Javascript (rt.cpan.org #34285)
+    * Accept $ in bare keys (rt.cpan.org #34320).  This should probably be
+      expanded to take identifiers as defined in the ECMAScript spec
+    * Added vertical tab (\v) to the list of recognized escape
+      sequences when parsing -- this is in the ECMAScript spec
+
 Version 0.21
     * Fix compile problem where I left a custom OPTIMIZE entry in
       Makefile.PL when testing

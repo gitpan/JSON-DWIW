@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2007 Don Owens <don@regexguy.com>.  All rights reserved.
+Copyright (c) 2007-2008 Don Owens <don@regexguy.com>.  All rights reserved.
 
 This is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.  See perlartistic.
@@ -12,6 +12,8 @@ PURPOSE.
 
 /* TODO before release:
    
+   - add benchmark prog to distribution
+   - add comparison of features of other JSON modules
    - (done) fix static stack (switch to heap if data structure is deep)
    - (done) write test for deep structure
    - (done) test scripts
@@ -19,6 +21,7 @@ PURPOSE.
        + bad_char_policy (done)
        + booleans (done)
        + numbers - handle ints and overflow (done)
+       + bare hash keys (done)
    - compilation on windows (done)
    - turn off forced -Wall (done)
    - take care of mmap case (includes on windows, etc.)
@@ -64,15 +67,16 @@ extern "C" {
 
 #define DO_DEBUG 0
 
-#if DO_DEBUG
-#define LOG_DEBUG(...) (printf("%s (%d) - ", __FILE__, __LINE__), printf(__VA_ARGS__), printf("\n"), fflush(stdout))
+#if DO_DEBUG && defined(JSONEVT_HAVE_FULL_VARIADIC_MACROS)
+#define LOG_DEBUG(...) printf("%s (%d) - ", __FILE__, __LINE__); printf(__VA_ARGS__); \
+    printf("\n"); fflush(stdout)
 #define DUMP_STACK(ctx) dump_stack(ctx)
 #else
-#define LOG_DEBUG(...) ;
-#define DUMP_STACK(ctx) ;
+#define LOG_DEBUG(...)
+#define DUMP_STACK
 #endif
 
-#if 1
+#if 0 && defined(JSONEVT_HAVE_FULL_VARIADIC_MACROS)
 #define PDB(...) fprintf(stderr, "in %s, line %d of %s: ", __func__, __LINE__, __FILE__); \
     fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n"); fflush(stderr)
 #else
@@ -800,7 +804,8 @@ setup_options(jsonevt_ctx * json_ctx, parse_callback_ctx * ctx, SV * self_sv) {
 
 static jsonevt_ctx *
 init_cbs(perl_wrapper_ctx * pwctx, SV * self_sv) {
-    jsonevt_ctx * ctx = jsonevt_new_ctx();
+    static jsonevt_ctx * ctx = (jsonevt_ctx *)0;
+    /* jsonevt_ctx * ctx = jsonevt_new_ctx(); */
     parse_callback_ctx * cb_data;
     /*
     char * error = Nullch;
@@ -816,6 +821,28 @@ init_cbs(perl_wrapper_ctx * pwctx, SV * self_sv) {
 
     SETUP_TRACE;
 
+    UNLESS (ctx) {
+        ctx = jsonevt_new_ctx();
+
+        jsonevt_set_string_cb(ctx, string_callback);
+        jsonevt_set_number_cb(ctx, number_callback);
+        jsonevt_set_begin_array_cb(ctx, array_begin_callback);
+        jsonevt_set_end_array_cb(ctx, array_end_callback);
+        /*
+          jsonevt_set_begin_array_element_cb(ctx, array_element_begin_callback);
+          jsonevt_set_end_array_element_cb(ctx, array_element_end_callback);
+        */
+        jsonevt_set_begin_hash_cb(ctx, hash_begin_callback);
+        jsonevt_set_end_hash_cb(ctx, hash_end_callback);
+        /*
+          jsonevt_set_begin_hash_entry_cb(ctx, hash_entry_begin_callback);
+          jsonevt_set_end_hash_entry_cb(ctx, hash_entry_end_callback);
+        */
+        
+        jsonevt_set_bool_cb(ctx, bool_callback);
+        jsonevt_set_null_cb(ctx, null_callback);
+    }
+
     memzero(pwctx, sizeof(*pwctx));
     cb_data = &pwctx->cbd;
 
@@ -830,27 +857,9 @@ init_cbs(perl_wrapper_ctx * pwctx, SV * self_sv) {
 
     jsonevt_set_cb_data(ctx, cb_data);
 
-    jsonevt_set_string_cb(ctx, string_callback);
-    jsonevt_set_number_cb(ctx, number_callback);
-    jsonevt_set_begin_array_cb(ctx, array_begin_callback);
-    jsonevt_set_end_array_cb(ctx, array_end_callback);
-    /*
-    jsonevt_set_begin_array_element_cb(ctx, array_element_begin_callback);
-    jsonevt_set_end_array_element_cb(ctx, array_element_end_callback);
-    */
-    jsonevt_set_begin_hash_cb(ctx, hash_begin_callback);
-    jsonevt_set_end_hash_cb(ctx, hash_end_callback);
-    /*
-    jsonevt_set_begin_hash_entry_cb(ctx, hash_entry_begin_callback);
-    jsonevt_set_end_hash_entry_cb(ctx, hash_entry_end_callback);
-    */
-
-    jsonevt_set_bool_cb(ctx, bool_callback);
-    jsonevt_set_null_cb(ctx, null_callback);
-
-    setup_options(ctx, cb_data, self_sv);
-
-
+    if (self_sv) {
+        setup_options(ctx, cb_data, self_sv);
+    }
 
     return ctx;
 }
@@ -945,7 +954,7 @@ handle_parse_result(int result, jsonevt_ctx * ctx, perl_wrapper_ctx * wctx) {
 
     }
 
-    jsonevt_free_ctx(ctx);
+    jsonevt_reset_ctx(ctx);
 
     if (throw_exception) {
         tmp_sv = get_sv("@", TRUE);

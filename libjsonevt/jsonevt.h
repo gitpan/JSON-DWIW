@@ -18,7 +18,7 @@
 
 */
 
-/* $Header: /repository/projects/libjsonevt/jsonevt.h,v 1.15 2007/12/19 05:03:26 don Exp $ */
+/* $Header: /repository/projects/libjsonevt/jsonevt.h,v 1.17 2008/03/19 08:39:58 don Exp $ */
 
 #ifndef JSONEVT_H
 #define JSONEVT_H
@@ -39,6 +39,25 @@ JSON_DO_CPLUSPLUS_WRAP_BEGIN
 #define JSONEVT_ON_WINDOWS
 #endif
 
+#ifdef _MSC_VER
+/* Microsoft Visual C++ */
+#if _MSC_VER >= 1400
+/* MS Visual C++ 2005 */
+#define JSONEVT_HAVE_FULL_VARIADIC_MACROS
+#define JSONEVT_HAVE_VARIADIC_MACROS
+#endif
+
+#if _MSC_VER < 1400
+#define JSONEVT_NO_HAVE_VSNPRINTF
+#endif
+
+#endif
+
+#ifdef __GNUC__
+#define JSONEVT_HAVE_FULL_VARIADIC_MACROS
+#define JSONEVT_HAVE_VARIADIC_MACROS
+#endif
+
 #ifdef JSONEVT_ON_WINDOWS
 typedef unsigned int uint;
 #endif
@@ -47,6 +66,7 @@ typedef struct json_extern_ctx jsonevt_ctx;
 
 jsonevt_ctx * jsonevt_new_ctx();
 void jsonevt_free_ctx(jsonevt_ctx * ctx);
+void jsonevt_reset_ctx(jsonevt_ctx * ctx);
 char * jsonevt_get_error(jsonevt_ctx * ctx);
 int jsonevt_parse(jsonevt_ctx * ctx, char * buf, uint len);
 int jsonevt_parse_file(jsonevt_ctx * ctx, char * file);

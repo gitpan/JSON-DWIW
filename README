@@ -305,7 +305,8 @@ ACKNOWLEDGEMENTS
     Thanks to Nigel Bowden for helping with compilation on Windows.
 
 LICENSE AND COPYRIGHT
-    Copyright (c) 2007 Don Owens <don@regexguy.com>. All rights reserved.
+    Copyright (c) 2007-2008 Don Owens <don@regexguy.com>. All rights
+    reserved.
 
     This is free software; you can redistribute it and/or modify it under
     the same terms as Perl itself. See perlartistic.
@@ -323,5 +324,5 @@ SEE ALSO
      L<JSON::Syck> (included in L<YAML::Syck>)
 
 VERSION
-    0.21
+    0.23
 
