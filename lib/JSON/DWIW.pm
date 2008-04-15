@@ -79,11 +79,12 @@ output as an empty string, but this may change.
 
 =head2 Decoding
 
-When decoding, null, true, and false become undef, 1, and 0,
-repectively.  Numbers that appear to be too long to be supported
-natively are converted to Math::BigInt or Math::BigFloat objects,
-if you have them installed.  Otherwise, long numbers are turned
-into strings to prevent data loss.
+Input is expected to utf-8.  When decoding, null, true, and false
+become undef, 1, and 0, repectively.  Numbers that appear to be
+too long to be supported natively are converted to Math::BigInt
+or Math::BigFloat objects, if you have them installed.
+Otherwise, long numbers are turned into strings to prevent data
+loss.
 
 The parser is flexible in what it accepts and handles some
 things not in the JSON spec:
@@ -109,6 +110,11 @@ things not in the JSON spec:
     [1,2,3,,,4,]
 
  becomes a 4 element array containing 1, 2, 3, and 4.
+
+=item escape sequences
+
+ Latin1 hexadecimal escape sequences (\xHH) are accepted, as in
+ Javascript.  Also, the vertical tab escape \v is recognized (\u000b).
 
 
 =back
@@ -137,7 +143,7 @@ require DynaLoader;
 Exporter::export_ok_tags('all');
 
 # change in POD as well!
-our $VERSION = '0.23';
+our $VERSION = '0.24';
 
 {
     package JSON::DWIW::Exporter;
@@ -857,7 +863,7 @@ PURPOSE.
 
 =head1 VERSION
 
-0.23
+0.24
 
 =cut
 

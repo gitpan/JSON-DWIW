@@ -18,7 +18,7 @@
 
 */
 
-/* $Header: /repository/projects/libjsonevt/jsonevt.c,v 1.37 2008/03/26 04:31:30 don Exp $ */
+/* $Header: /repository/projects/libjsonevt/jsonevt.c,v 1.41 2008/04/06 19:47:33 don Exp $ */
 
 /*
 #if defined(__WIN32) || defined(WIN32) || defined(_WIN32)
@@ -83,110 +83,9 @@ SET_ERROR(json_context * ctx, char * fmt, ...) {
 static int parse_value(json_context * ctx, uint level, uint flags);
 static char * set_error(json_context * ctx, char * file, uint line, char * fmt, ...);
 
+/*
 #define UNI_CHK_RETURN(ctx, val) ((ctx->options && (ctx->options & JSON_EVT_OPTION_BAD_CHAR_POLICY_CONVERT ? val : (ctx->options & JSON_EVT_OPTION_BAD_CHAR_POLICY_PASS ? val : 0)) ) : 0)
-
-static uint
-json_utf8_to_uni(json_context * ctx, char * str, uint cur_len, uint * ret_len, uint flags) {
-    unsigned char * s = (unsigned char *)str;
-    uint uv = *s, ouv = 0;
-    uint len = 1;
-    uint expectlen = 0;
-
-#define UTF8_WARN_EMPTY              1
-#define UTF8_WARN_CONTINUATION           2
-#define UTF8_WARN_NON_CONTINUATION       3
-#define UTF8_WARN_FE_FF              4
-#define UTF8_WARN_SHORT              5
-#define UTF8_WARN_OVERFLOW           6
-#define UTF8_WARN_SURROGATE          7
-#define UTF8_WARN_LONG               8
-#define UTF8_WARN_FFFF               9 /* Also FFFE. */
-
-    if (cur_len == 0 &&
-        !(flags & UTF8_ALLOW_EMPTY)) {
-        return 0;
-    }
-    
-    if (UTF8_IS_INVARIANT(uv)) {
-        if (ret_len)
-            *ret_len = 1;
-        return (uint) (NATIVE_TO_UTF(*s));
-    }
-
-    if (UTF8_IS_CONTINUATION(uv) &&
-        !(flags & UTF8_ALLOW_CONTINUATION)) {
-        return 0;
-    }
-
-    if (UTF8_IS_START(uv) && cur_len > 1 && !UTF8_IS_CONTINUATION(s[1]) &&
-        !(flags & UTF8_ALLOW_NON_CONTINUATION)) {
-        return 0;
-    }
-
-    if ((uv == 0xfe || uv == 0xff) &&
-        !(flags & UTF8_ALLOW_FE_FF)) {
-        return 0;
-    }
-
-    if      (!(uv & 0x20))  { len =  2; uv &= 0x1f; }
-    else if (!(uv & 0x10))  { len =  3; uv &= 0x0f; }
-    else if (!(uv & 0x08))  { len =  4; uv &= 0x07; }
-    else if (!(uv & 0x04))  { len =  5; uv &= 0x03; }
-    else if (!(uv & 0x02))  { len =  6; uv &= 0x01; }
-    else if (!(uv & 0x01))  { len =  7; uv = 0; }
-    else            { len = 13; uv = 0; } /* whoa! */
-
-    if (ret_len)
-        *ret_len = len;
-
-    expectlen = len;
-
-    if ((cur_len < expectlen) &&
-        !(flags & UTF8_ALLOW_SHORT)) {
-        return 0;
-    }
-
-    len--;
-    s++;
-    ouv = uv;
-
-    while (len--) {
-        if (!UTF8_IS_CONTINUATION(*s) &&
-            !(flags & UTF8_ALLOW_NON_CONTINUATION)) {
-            s--;
-            return 0;
-        }
-        else
-            uv = UTF8_ACCUMULATE(uv, *s);
-        if (!(uv > ouv)) {
-            /* These cannot be allowed. */
-            if (uv == ouv) {
-                if (expectlen != 13 && !(flags & UTF8_ALLOW_LONG)) {
-                    return 0;
-                }
-            }
-            else { /* uv < ouv */
-                /* This cannot be allowed. */
-                return 0;
-            }
-        }
-        s++;
-        ouv = uv;
-    }
-
-    if (UNICODE_IS_SURROGATE(uv) &&
-        !(flags & UTF8_ALLOW_SURROGATE)) {
-        return 0;
-    } else if ((expectlen > (uint)UNISKIP(uv)) &&
-        !(flags & UTF8_ALLOW_LONG)) {
-        return 0;
-    } else if (UNICODE_IS_ILLEGAL(uv) &&
-        !(flags & UTF8_ALLOW_FFFF)) {
-        return 0;
-    }
-
-    return uv;
-}
+*/
 
 static uint
 json_utf8_to_uni_with_check(json_context * ctx, char * str, uint cur_len, uint * ret_len,
@@ -203,7 +102,7 @@ json_utf8_to_uni_with_check(json_context * ctx, char * str, uint cur_len, uint *
         return 0;
     }
 
-    uval = json_utf8_to_uni(ctx, str, cur_len, ret_len, flags);
+    uval = utf8_bytes_to_unicode((uint8_t *)str, cur_len, ret_len);
 
     if (uval == 0) {
         if (ctx->bad_char_policy && (ctx->bad_char_policy & JSON_EVT_OPTION_BAD_CHAR_POLICY_CONVERT)) {
@@ -220,37 +119,10 @@ json_utf8_to_uni_with_check(json_context * ctx, char * str, uint cur_len, uint *
     return uval;
 }
 
-#define UTF8_TO_CODE_POINT(ctx, str, cur_len, ret_len) ( cur_len > 0 ? ( UTF8_IS_INVARIANT(*str) ? ( (ret_len ? *ret_len = 1 : 0), (uint)*str) : json_utf8_to_uni_with_check(ctx, str, cur_len, ret_len, 0)) : 0 )
+#define UTF8_TO_CODE_POINT(ctx, str, cur_len, ret_len) ( cur_len > 0 ? ( UTF8_BYTE_IS_INVARIANT(*str) ? ( (ret_len ? *ret_len = 1 : 0), (uint)*str) : json_utf8_to_uni_with_check(ctx, str, cur_len, ret_len, 0)) : 0 )
 
 #define READ_CHAR(ctx, ret_len) ( HAVE_MORE_CHARS(ctx) ? (UTF8_TO_CODE_POINT(ctx, &(ctx)->buf[(ctx)->pos], (ctx)->len - (ctx)->pos, ret_len)) : 0 )
 
-/*
-#define READ_CHAR(ctx, ret_len) read_char(ctx, ret_len)
-*/
-
-/*
-static uint
-read_char(json_context * ctx, uint * len) {
-    uint this_char;
-    uint char_len = 0;
-
-    if (ctx->pos >= ctx->len) {
-        if (len) {
-            *len = 0;
-        }
-        return 0;
-    }
-
-    this_char = ctx->buf[ctx->pos];
-    char_len = 1;
-
-    if (len) {
-        *len = char_len;
-    }
-
-    return this_char;
-}
-*/
 
 static uint
 peek_char(json_context * ctx) {
@@ -587,88 +459,10 @@ switch_to_dynamic_buf(json_str * s) {
 }
 #endif
 
-/*
-#define UNICODE_TO_BYTES(ctx, code_point, out_buf, out_len_ptr) unicode_to_bytes(ctx, code_point, out_buf, out_len_ptr)
-*/
+#define UNICODE_TO_BYTES(ctx, code_point, out_buf) \
+    (UNICODE_IS_INVARIANT(code_point)  ?  (*(out_buf) = code_point, 1) : \
+        utf8_unicode_to_bytes((uint32_t)code_point, out_buf) )
 
-#define UNICODE_TO_BYTES(ctx, code_point, out_buf, out_len_ptr) ( UTF8_IS_INVARIANT(code_point) ? \
-        (out_buf[0] = code_point, (out_len_ptr ? *out_len_ptr = 1 : 1), 1) : \
-        unicode_to_bytes(ctx, code_point, out_buf, out_len_ptr) )
-
-/* copied from Perl source code */
-static unsigned char *
-unicode_to_utf8_bytes_raw(uint code_point, unsigned char * out_buf) {
-    uint uv = code_point;
-    unsigned char * d = out_buf;
-
-    if (UTF8_IS_INVARIANT(uv)) {
-        *d++ = uv;
-        return d;
-    }
-
-    if (uv < 0x800) {
-        *d++ = (U8)(( uv >>  6)         | 0xc0);
-        *d++ = (U8)(( uv        & 0x3f) | 0x80);
-        return d;
-    }
-    if (uv < 0x10000) {
-        *d++ = (U8)(( uv >> 12)         | 0xe0);
-        *d++ = (U8)(((uv >>  6) & 0x3f) | 0x80);
-        *d++ = (U8)(( uv        & 0x3f) | 0x80);
-        return d;
-    }
-    if (uv < 0x200000) {
-        *d++ = (U8)(( uv >> 18)         | 0xf0);
-        *d++ = (U8)(((uv >> 12) & 0x3f) | 0x80);
-        *d++ = (U8)(((uv >>  6) & 0x3f) | 0x80);
-        *d++ = (U8)(( uv        & 0x3f) | 0x80);
-        return d;
-    }
-    if (uv < 0x4000000) {
-        *d++ = (U8)(( uv >> 24)         | 0xf8);
-        *d++ = (U8)(((uv >> 18) & 0x3f) | 0x80);
-        *d++ = (U8)(((uv >> 12) & 0x3f) | 0x80);
-        *d++ = (U8)(((uv >>  6) & 0x3f) | 0x80);
-        *d++ = (U8)(( uv        & 0x3f) | 0x80);
-        return d;
-    }
-    if (uv < 0x80000000) {
-        *d++ = (U8)(( uv >> 30)         | 0xfc);
-        *d++ = (U8)(((uv >> 24) & 0x3f) | 0x80);
-        *d++ = (U8)(((uv >> 18) & 0x3f) | 0x80);
-        *d++ = (U8)(((uv >> 12) & 0x3f) | 0x80);
-        *d++ = (U8)(((uv >>  6) & 0x3f) | 0x80);
-        *d++ = (U8)(( uv        & 0x3f) | 0x80);
-        return d;
-    }
-
-    /*
-#ifdef HAS_QUAD
-    if (uv < UTF8_QUAD_MAX)
-#endif
-    */
-    {
-        *d++ =                            0xfe;	/* Can't match U+FEFF! */
-        *d++ = (U8)(((uv >> 30) & 0x3f) | 0x80);
-        *d++ = (U8)(((uv >> 24) & 0x3f) | 0x80);
-        *d++ = (U8)(((uv >> 18) & 0x3f) | 0x80);
-        *d++ = (U8)(((uv >> 12) & 0x3f) | 0x80);
-        *d++ = (U8)(((uv >>  6) & 0x3f) | 0x80);
-        *d++ = (U8)(( uv        & 0x3f) | 0x80);
-        return d;
-    }
-}
-
-static int
-unicode_to_bytes(json_context * ctx, uint code_point, char * out_buf, uint * out_len) {
-    unsigned char * d = unicode_to_utf8_bytes_raw(code_point, (unsigned char *)out_buf);
-
-    if (out_len) {
-        *out_len = d - (unsigned char *)out_buf;
-    }
-
-    return 1;
-}
 
 /* return estimate JSON string size in bytes */
 /* assume utf-8 for now */
@@ -927,20 +721,20 @@ parse_word(json_context * ctx, int is_identifier, uint level, uint flags) {
                       CLEAR_JSON_STR(&str);                             \
                       return 0;                                         \
                   }                                                     \
-                  u_bytes[i] = nv;                                      \
+                  u_bytes[i] = (uint8_t)nv;                             \
                   i++;
 
 static int
 parse_string(json_context * ctx, uint level, uint flags) {
-    uint this_char;
+    uint32_t this_char;
     int nibble_val;
-    uint quote_char;
+    uint32_t quote_char;
     uint char_count = 0;
     uint buf_size = 0;
     json_str str;
     uint end_quote_pos = 0;
-    char u_bytes[4];
-    uint u_bytes_len;
+    uint8_t u_bytes[4];
+    uint32_t u_bytes_len;
     /* uint multiplier; */
     int i;
     /* uint this_val; */
@@ -1096,7 +890,7 @@ parse_string(json_context * ctx, uint level, uint flags) {
 
         BREAK_ON_ERROR(ctx);
 
-        UNICODE_TO_BYTES(ctx, this_char, u_bytes, &u_bytes_len);
+        u_bytes_len = UNICODE_TO_BYTES(ctx, this_char, u_bytes);
         MAYBE_APPEND_BYTES(&str, u_bytes, u_bytes_len);
 
     }
@@ -1699,12 +1493,6 @@ check_bom(json_context * ctx) {
                   NEXT_CHAR(ctx);
                   NEXT_CHAR(ctx);
 
-                  /*
-                  ctx->pos += 3;
-                  ctx->cur_byte_pos += 3;
-                  ctx->cur_char_pos++;
-                  ctx->char_pos++;
-                  */
               }
               return 1;
               break;
@@ -1849,7 +1637,8 @@ jsonevt_parse_file(jsonevt_ctx * ext_ctx, char * file) {
 
     file_size = file_info.st_size;
 
-    buf = (char *)mmap(NULL, file_size, PROT_READ, MAP_FILE /*MAP_FIXED*/, fd, 0);
+    /* MAP_FILE == 0 */
+    buf = (char *)mmap(NULL, file_size, PROT_READ, 0 /*MAP_FIXED*/, fd, 0);
     if (buf == MAP_FAILED) {
         JSON_DEBUG("mmap failed.  Exiting.");
         SET_ERROR(&ctx, "mmap failed.  Exiting.");

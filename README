@@ -53,11 +53,11 @@ DESCRIPTION
     string, but this may change.
 
   Decoding
-    When decoding, null, true, and false become undef, 1, and 0,
-    repectively. Numbers that appear to be too long to be supported natively
-    are converted to Math::BigInt or Math::BigFloat objects, if you have
-    them installed. Otherwise, long numbers are turned into strings to
-    prevent data loss.
+    Input is expected to utf-8. When decoding, null, true, and false become
+    undef, 1, and 0, repectively. Numbers that appear to be too long to be
+    supported natively are converted to Math::BigInt or Math::BigFloat
+    objects, if you have them installed. Otherwise, long numbers are turned
+    into strings to prevent data loss.
 
     The parser is flexible in what it accepts and handles some things not in
     the JSON spec:
@@ -78,6 +78,10 @@ DESCRIPTION
             [1,2,3,,,4,]
 
          becomes a 4 element array containing 1, 2, 3, and 4.
+
+    escape sequences
+         Latin1 hexadecimal escape sequences (\xHH) are accepted, as in
+         Javascript.  Also, the vertical tab escape \v is recognized (\u000b).
 
 METHODS
   new(\%options)
@@ -324,5 +328,5 @@ SEE ALSO
      L<JSON::Syck> (included in L<YAML::Syck>)
 
 VERSION
-    0.23
+    0.24
 

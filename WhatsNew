@@ -1,4 +1,12 @@
-Version 0.22
+Version 0.24
+    * Fixed compilation problem on Solaris (rt.cpan.org #35040)
+    * Some code cleanup
+    * Implemented utf-8 encoding/decoding from scratch when used by
+      deserialize().  Previously used Perl's implementation.
+    * Implemented utf-16 and utf-32 encoding and decoding, although it
+      is not used yet.
+
+Version 0.23
     * Fixed illegal memory access and warnings from glibc (rt.cpan.org #33121)
     * Now accept \xHH escape as in Javascript (rt.cpan.org #34285)
     * Accept $ in bare keys (rt.cpan.org #34320).  This should probably be

@@ -18,11 +18,17 @@
 
 */
 
-/* $Header: /repository/projects/libjsonevt/jsonevt_private.h,v 1.26 2008/03/26 04:31:30 don Exp $ */
+/* $Header: /repository/projects/libjsonevt/jsonevt_private.h,v 1.28 2008/04/05 21:43:40 don Exp $ */
 
-#include <string.h>
+#ifndef JSONEVT_PRIVATE_H
+#define JSONEVT_PRIVATE_H
 
 #include "jsonevt.h"
+#include "utf8.h"
+
+JSON_DO_CPLUSPLUS_WRAP_BEGIN
+
+#include <string.h>
 
 typedef struct {
     char * buf;
@@ -33,47 +39,6 @@ struct context_flags_struct {
     int have_char:1;
     int pad:7;
 };
-
-/*
-struct json_extern_ctx {
-    char * error;
-    uint error_byte_pos;
-    uint error_char_pos;
-    uint error_line;
-    uint error_byte_col;
-    uint error_char_col;
-    void * cb_data;
-    json_string_cb string_cb;
-    json_array_begin_cb begin_array_cb;
-    json_array_end_cb end_array_cb;
-    json_array_begin_element_cb begin_array_element_cb;
-    json_array_end_element_cb end_array_element_cb;
-    json_hash_begin_cb begin_hash_cb;
-    json_hash_end_cb end_hash_cb;
-    json_hash_begin_entry_cb begin_hash_entry_cb;
-    json_hash_end_entry_cb end_hash_entry_cb;
-    json_number_cb number_cb;
-    json_bool_cb bool_cb;
-    json_null_cb null_cb;
-    json_comment_cb comment_cb;
-
-    uint string_count;
-    uint longest_string_bytes;
-    uint longest_string_chars;
-    uint number_count;
-    uint bool_count;
-    uint null_count;
-    uint hash_count;
-    uint array_count;
-    uint deepest_level;
-    uint line;
-    uint byte_count;
-    uint char_count;
-
-    uint options;
-    uint bad_char_policy;
-};
-*/
 
 typedef struct json_extern_ctx json_context;
 
@@ -338,13 +303,6 @@ typedef struct {
     DO_CB_WITH_RET(ctx, "comment", DO_COMMENT_CALLBACK(ctx, data, data_len, flags))
 
  /* Portions of the code below were taken from the Perl source */
-
-#ifndef JSONEVT_PRIVATE_H
-#define JSONEVT_PRIVATE_H
-
-#include "jsonevt.h"
-
-JSON_DO_CPLUSPLUS_WRAP_BEGIN
 
 typedef unsigned char U8;
 
