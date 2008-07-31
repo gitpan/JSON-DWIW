@@ -2,20 +2,26 @@
  * Authors: Don
  */
 
-/* $Header: /repository/projects/libjsonevt/int_defs.h,v 1.1 2008/04/06 09:32:27 don Exp $ */
+/* $Header: /repository/projects/libjsonevt/int_defs.h,v 1.2 2008/04/17 04:15:29 don Exp $ */
 
 #ifndef INT_DEFS_H
 #define INT_DEFS_H
+
+#include "jsonevt_config.h"
 
 #ifdef _MSC_VER
 typedef unsigned __int8   uint8_t;
 typedef unsigned __int32  uint32_t;
 #else
+
+#if 0
 #ifdef __FreeBSD__
 #include <inttypes.h>
 #else
 #include <stdint.h>
 #endif
+#endif
+
 #endif
 
 #endif /* INT_DEFS_H */

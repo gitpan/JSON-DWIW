@@ -18,7 +18,7 @@
 
 */
 
-/* $Header: /repository/projects/libjsonevt/jsonevt_private.h,v 1.28 2008/04/05 21:43:40 don Exp $ */
+/* $Header: /repository/projects/libjsonevt/jsonevt_private.h,v 1.29 2008/04/17 04:12:16 don Exp $ */
 
 #ifndef JSONEVT_PRIVATE_H
 #define JSONEVT_PRIVATE_H
@@ -151,7 +151,8 @@ typedef struct {
 
 #define JSON_DO_DEBUG 0
 
-#if JSON_DO_DEBUG && defined(JSONEVT_HAVE_FULL_VARIADIC_MACROS)
+#if defined(JSONEVT_HAVE_FULL_VARIADIC_MACROS)
+#if JSON_DO_DEBUG
 #define JSON_DEBUG(...) printf("in %s, %s (%d) - ", __func__, __FILE__, __LINE__); \
     printf(__VA_ARGS__);                                                \
     printf("\n"); fflush(stdout)
@@ -159,12 +160,19 @@ typedef struct {
 /* FIXME: make this work under compilers not supporting variadic macros */
 #define JSON_DEBUG(...)
 #endif
+#else
+static void JSON_DEBUG(...) { }
+#endif
 
-#if 0 && defined(JSONEVT_HAVE_FULL_VARIADIC_MACROS)
+#if defined(JSONEVT_HAVE_FULL_VARIADIC_MACROS)
+#if 0
 #define PDB(...) fprintf(stderr, "in %s, line %d of %s: ", __func__, __LINE__, __FILE__); \
     fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n"); fflush(stderr)
 #else
-#define PDB
+#define PDB(...)
+#endif
+#else
+static void PDB(...) { }
 #endif
 
 #ifdef JSONEVT_ON_WINDOWS

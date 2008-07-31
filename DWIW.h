@@ -17,7 +17,7 @@ Copyright (c) 2007-2008 Don Owens <don@regexguy.com>.  All rights reserved.
  PURPOSE.
 */
 
-/* $Header: /repository/owens_lib/cpan/JSON/DWIW/DWIW.h,v 1.1 2008/04/15 03:47:02 don Exp $ */
+/* $Header: /repository/owens_lib/cpan/JSON/DWIW/DWIW.h,v 1.2 2008/04/17 04:12:16 don Exp $ */
 
 #ifndef DWIW_H
 #define DWIW_H
@@ -86,13 +86,13 @@ extern "C" {
 #if JSON_DO_DEBUG
 #define JSON_DEBUG(...) printf("%s (%d) - ", __FILE__, __LINE__); printf(__VA_ARGS__); printf("\n"); fflush(stdout)
 #else
-#define JSON_DEBUG
+#define JSON_DEBUG(...)
 #endif
 
 #if JSON_DO_TRACE
 #define JSON_TRACE(...) printf("%s (%d) - ", __FILE__, __LINE__); printf(__VA_ARGS__); printf("\n"); fflush(stdout)
 #else
-#define JSON_TRACE
+#define JSON_TRACE(...)
 #endif
 
 #else

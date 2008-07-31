@@ -18,7 +18,7 @@
 
 */
 
-/* $Header: /repository/projects/libjsonevt/jsonevt.c,v 1.41 2008/04/06 19:47:33 don Exp $ */
+/* $Header: /repository/projects/libjsonevt/jsonevt.c,v 1.43 2008/04/19 01:44:47 don Exp $ */
 
 /*
 #if defined(__WIN32) || defined(WIN32) || defined(_WIN32)
@@ -210,10 +210,9 @@ static int
 asprintf(char ** ret, const char * fmt, ...) {
     va_list ap;
     int rv = 0;
-    char * ret_buf = NULL;
     
     va_start(ap, fmt);
-    rv = vasprintf(&ret_buf, fmt, ap);
+    rv = vasprintf(ret, fmt, ap);
     va_end(ap);
 
     return rv;
@@ -1618,6 +1617,11 @@ jsonevt_parse_file(jsonevt_ctx * ext_ctx, char * file) {
     size_t file_size;
     struct stat file_info;
 
+    /*
+#if sizeof(file_info.st_size) > sizeof(file_size)
+#endif
+*/
+
     ZERO_MEM((void *)&ctx, sizeof(ctx));
     ctx.ext_ctx = ext_ctx;
 
@@ -1629,8 +1633,8 @@ jsonevt_parse_file(jsonevt_ctx * ext_ctx, char * file) {
     }
 
     if (fstat(fd, &file_info)) {
-        JSON_DEBUG("couldn't stat %s.  Exiting.", file);
-        SET_ERROR(&ctx, "couldn't stat %s.  Exiting.", file);
+        JSON_DEBUG("couldn't stat %s", file);
+        SET_ERROR(&ctx, "couldn't stat %s", file);
         close(fd);
         return 0;
     }
@@ -1638,10 +1642,13 @@ jsonevt_parse_file(jsonevt_ctx * ext_ctx, char * file) {
     file_size = file_info.st_size;
 
     /* MAP_FILE == 0 */
-    buf = (char *)mmap(NULL, file_size, PROT_READ, 0 /*MAP_FIXED*/, fd, 0);
+#ifndef MAP_PRIVATE
+#define MAP_PRIVATE 2
+#endif
+    buf = (char *)mmap(NULL, file_size, PROT_READ, MAP_PRIVATE /*MAP_FIXED*/, fd, 0);
     if (buf == MAP_FAILED) {
-        JSON_DEBUG("mmap failed.  Exiting.");
-        SET_ERROR(&ctx, "mmap failed.  Exiting.");
+        JSON_DEBUG("mmap failed.");
+        SET_ERROR(&ctx, "mmap call failed for file %s", file);
         close(fd);
         return 0;
     }

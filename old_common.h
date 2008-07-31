@@ -21,6 +21,7 @@ Copyright (c) 2007-2008 Don Owens <don@regexguy.com>.  All rights reserved.
 #define OLD_COMMON_H
 
 #include "DWIW.h"
+#include "libjsonevt/int_defs.h"
 
 #define kCommasAreWhitespace 1
 
@@ -53,6 +54,8 @@ typedef struct {
     unsigned int hash_count;
     unsigned int array_count;
     unsigned int deepest_level;
+
+    HV * ref_track;
 } self_context;
 
 #define kHaveModuleNotChecked 0
@@ -62,6 +65,13 @@ typedef struct {
 UV get_bad_char_policy(HV * self_hash);
 int have_bigint();
 int have_bigfloat();
+
+uint32_t common_utf8_bytes_to_unicode(const uint8_t *orig_buf, uint32_t buf_len, uint32_t *ret_len);
+uint32_t common_utf8_unicode_to_bytes(uint32_t code_point, uint8_t *out_buf);
+
+/*
+#define convert_uv_to_utf8(buf, uv) common_utf8_unicode_to_bytes((uint32_t)(uv), (uint8_t *)(buf));
+*/
 
 #ifdef IS_PERL_5_6
 #define convert_utf8_to_uv(utf8, len_ptr) utf8_to_uv_simple(utf8, len_ptr)

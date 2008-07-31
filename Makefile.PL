@@ -12,8 +12,10 @@ use File::Spec;
 
 my $src_dir = 'libjsonevt';
 
-# for stuff to skip on Windows
+my $on_windows;
+# for stuff to skip/change on Windows
 if ($^O =~ /MSWin/) {
+    $on_windows = 1;
     # $use_jsonevt = 0;
 }
 
@@ -24,21 +26,51 @@ my $obj_str = join(' ', map { "$_\$(OBJ_EXT)" } @utf_files, 'evt', 'jsonevt', 'o
                    'old_common');
 
 sub MY::postamble {
+    my ($self) = @_;
+
     my $stuff = '';
 
-    $stuff .= "\$(INST_DYNAMIC): $obj_str\n\n";
+    my $exec_output_name = sub { my ($name) = @_;
+                                 if ($on_windows and $self->{CC}
+                                     and $self->{CC} =~ /\Acl(?:\.exe)?\Z/) {
+                                     return "/Fe$name";
+                                 }
+                                 else {
+                                     return "-o $name";
+                                 }
+                             };
+    
+    my $cc = '$(CCCMD) $(CCCDLFLAGS) "-I$(PERL_INC)" $(PASTHRU_DEFINE) $(DEFINE) ';
+    my $cc_main = '$(CC) $(PASTHRU_INC) $(INC) $(CCFLAGS) $(OPTIMIZE) $(PERLTYPE) $(MPOLLUTE) $(DEFINE_VERSION) $(XS_DEFINE_VERSION) ';
+    my $config_h = File::Spec->catfile($src_dir, 'jsonevt_config.h');
+
+    $stuff .= "\$(INST_DYNAMIC): $obj_str $config_h\n\n";
     
     $stuff .= "evt\$(OBJ_EXT): evt.c\n\n";
     $stuff .= "old_parse\$(OBJ_EXT): old_parse.c old_parse.h old_common.h\n\n";
     $stuff .= "old_common\$(OBJ_EXT): old_common.c old_common.h\n\n";
-    $stuff .= "DWIW\$(OBJ_EXT): DWIW.h old_parse.h old_common.h\n\n";
+    $stuff .= "DWIW\$(OBJ_EXT): DWIW.h old_parse.h old_common.h $config_h\n\n";
+    # $stuff .= "DWIW.c: DWIW.h old_parse.h old_common.h $config_h\n\n";
+
+    my $make_conf = File::Spec->catfile($src_dir, 'make_config');
+    # my $exec_make_conf = File::Spec->rel2abs('make_config');
+    my $exec_make_conf = File::Spec->rel2abs($make_conf);
+    $exec_make_conf .= " $config_h " . $cc;
+
+#     print "\n\nmake_conf=$make_conf\n\n";
+#     print "cc_main=$cc_main\n\n";
+    
+    $stuff .= "$obj_str: $config_h\n\n";
+
+    $stuff .= "$config_h: $make_conf\n\t$exec_make_conf\n\n";
+    $stuff .= "$make_conf: $make_conf.c\n\t$cc_main " . $exec_output_name->($make_conf)
+        . " $make_conf.c\n\n";
     
     $stuff .= "jsonevt\$(OBJ_EXT): ";
     $stuff .= join(' ', map { File::Spec->catfile($src_dir, $_) }
                    ('jsonevt.h', 'jsonevt_private.h', @utf_headers, 'uni.h', 'jsonevt.c'));
     $stuff .= "\n";
-    $stuff .= "\t" . '$(CCCMD) $(CCCDLFLAGS) "-I$(PERL_INC)" $(PASTHRU_DEFINE) $(DEFINE) ';
-    $stuff .= File::Spec->catfile($src_dir, 'jsonevt.c') . "\n";
+    $stuff .= "\t$cc " . File::Spec->catfile($src_dir, 'jsonevt.c') . "\n";
     $stuff .= "\n";
     
     foreach my $file (@utf_files) {

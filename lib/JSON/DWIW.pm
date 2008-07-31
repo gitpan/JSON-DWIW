@@ -93,19 +93,19 @@ things not in the JSON spec:
 
 =item quotes
 
- Both single and double quotes are allowed for quoting a string, e.g.,
+Both single and double quotes are allowed for quoting a string, e.g.,
 
     [ "string1", 'string2' ]
 
 =item bare keys
 
- Object/hash keys can be bare if they look like an identifier, e.g.,
+Object/hash keys can be bare if they look like an identifier, e.g.,
 
     { var1: "myval1", var2: "myval2" }
 
 =item extra commas
 
- Extra commas in objects/hashes and arrays are ignored, e.g.,
+Extra commas in objects/hashes and arrays are ignored, e.g.,
 
     [1,2,3,,,4,]
 
@@ -113,8 +113,8 @@ things not in the JSON spec:
 
 =item escape sequences
 
- Latin1 hexadecimal escape sequences (\xHH) are accepted, as in
- Javascript.  Also, the vertical tab escape \v is recognized (\u000b).
+Latin1 hexadecimal escape sequences (\xHH) are accepted, as in
+Javascript.  Also, the vertical tab escape \v is recognized (\u000b).
 
 
 =back
@@ -143,7 +143,7 @@ require DynaLoader;
 Exporter::export_ok_tags('all');
 
 # change in POD as well!
-our $VERSION = '0.24';
+our $VERSION = '0.26';
 
 {
     package JSON::DWIW::Exporter;
@@ -189,12 +189,12 @@ JSON::DWIW->bootstrap($VERSION);
 
 =head2 new(\%options)
 
- Create a new JSON::DWIW object.
+Create a new JSON::DWIW object.
 
- %options is an optional hash of parameters that will change the
- bahavior of this module when encoding to JSON.  You may also
- pass these options as the second argument to to_json() and
- from_json().  The following options are supported:
+%options is an optional hash of parameters that will change the
+bahavior of this module when encoding to JSON.  You may also
+pass these options as the second argument to to_json() and
+from_json().  The following options are supported:
 
 =head3 bare_keys
 
@@ -204,51 +204,51 @@ JSON::DWIW->bootstrap($VERSION);
 
 =head3 use_exceptions
 
- If set to a true value, errors found when converting to or from
- JSON will result in die() being called with the error message.
- The default is to not use exceptions.
+If set to a true value, errors found when converting to or from
+JSON will result in die() being called with the error message.
+The default is to not use exceptions.
 
 =head3 bad_char_policy
 
- This options indicates what should be done if bad characters are
- found, e.g., bad utf-8 sequence.  The default is to return an
- error and drop all the output.
+This options indicates what should be done if bad characters are
+found, e.g., bad utf-8 sequence.  The default is to return an
+error and drop all the output.
 
- The following values for bad_char_policy are supported:
+The following values for bad_char_policy are supported:
 
 =head4 error
 
- default action, i.e., drop any output built up and return an error
+default action, i.e., drop any output built up and return an error
 
 =head4 convert
 
- Convert to a utf-8 char using the value of the byte as a code
- point.  This is basically the same as assuming the bad character
- is in latin-1 and converting it to utf-8.
+Convert to a utf-8 char using the value of the byte as a code
+point.  This is basically the same as assuming the bad character
+is in latin-1 and converting it to utf-8.
 
 =head4 pass_through
 
- Ignore the error and pass through the raw bytes (invalid JSON)
+Ignore the error and pass through the raw bytes (invalid JSON)
 
 =head3 escape_multi_byte
 
- If set to a true value, escape all multi-byte characters (e.g.,
- \u00e9) when converting to JSON.
+If set to a true value, escape all multi-byte characters (e.g.,
+\u00e9) when converting to JSON.
 
 =head3 pretty
 
- Add white space to the output when calling to_json() to make the
- output easier for humans to read.
+Add white space to the output when calling to_json() to make the
+output easier for humans to read.
 
 =head3 convert_bool
 
- When converting from JSON, return objects for booleans so that
- "true" and "false" can be maintained when encoding and decoding.
- If this flag is set, then "true" becomes a JSON::DWIW::Boolean
- object that evaluates to true in a boolean context, and "false"
- becomes an object that evaluates to false in a boolean context.
- These objects are recognized by the to_json() method, so they
- will be output as "true" or "false" instead of "1" or "0".
+When converting from JSON, return objects for booleans so that
+"true" and "false" can be maintained when encoding and decoding.
+If this flag is set, then "true" becomes a JSON::DWIW::Boolean
+object that evaluates to true in a boolean context, and "false"
+becomes an object that evaluates to false in a boolean context.
+These objects are recognized by the to_json() method, so they
+will be output as "true" or "false" instead of "1" or "0".
 
 =cut
 
@@ -265,7 +265,7 @@ sub new {
     }
 
     foreach my $field (qw/bare_keys use_exceptions bad_char_policy dump_vars pretty
-                          escape_multi_byte convert_bool/) {
+                          escape_multi_byte convert_bool detect_circular_refs/) {
         if (exists($params->{$field})) {
             $self->{$field} = $params->{$field};
         }
@@ -278,15 +278,15 @@ sub new {
 
 =head2 to_json
 
- Returns the JSON representation of $data (arbitrary
- datastructure).  See http://www.json.org/ for details.
+Returns the JSON representation of $data (arbitrary
+datastructure).  See http://www.json.org/ for details.
 
- Called in list context, this method returns a list whose first
- element is the encoded JSON string and the second element is an
- error message, if any.  If $error_msg is defined, there was a
- problem converting to JSON.  You may also pass a second argument
- to to_json() that is a reference to a hash of options -- see
- new().
+Called in list context, this method returns a list whose first
+element is the encoded JSON string and the second element is an
+error message, if any.  If $error_msg is defined, there was a
+problem converting to JSON.  You may also pass a second argument
+to to_json() that is a reference to a hash of options -- see
+new().
 
      my $json_str = JSON::DWIW->to_json($data);
 
@@ -377,16 +377,16 @@ sub serialize {
 
 =head2 from_json
 
- Returns the Perl data structure for the given JSON string.  The
- value for true becomes 1, false becomes 0, and null gets
- converted to undef.
+Returns the Perl data structure for the given JSON string.  The
+value for true becomes 1, false becomes 0, and null gets
+converted to undef.
 
- Called in list context, this method returns a list whose first
- element is the data and the second element is the error message,
- if any.  If $error_msg is defined, there was a problem parsing
- the JSON string, and $data will be undef.  You may also pass a
- second argument to from_json() that is a reference to a hash of
- options -- see new().
+Called in list context, this method returns a list whose first
+element is the data and the second element is the error message,
+if any.  If $error_msg is defined, there was a problem parsing
+the JSON string, and $data will be undef.  You may also pass a
+second argument to from_json() that is a reference to a hash of
+options -- see new().
 
      my $data = from_json($json_str)
 
@@ -479,9 +479,9 @@ function/method to see if an error is defined.
 
 =head2 from_json_file
 
- Returns the Perl data structure for the JSON object in the given
- file.  Currently, this method slurps in the whole file, then
- parses it.
+Returns the Perl data structure for the JSON object in the given
+file.  Currently, this method slurps in the whole file, then
+parses it.
 
 my ($data, $error_msg) = $json->from_json_file($file, \%options)
 
@@ -560,11 +560,11 @@ sub from_json_file {
 
 =head2 to_json_file
 
- Converts $data to JSON and writes the result to the file $file.
- Currently, this is simply a convenience routine that converts
- the data to a JSON string and then writes it to the file.
+Converts $data to JSON and writes the result to the file $file.
+Currently, this is simply a convenience routine that converts
+the data to a JSON string and then writes it to the file.
 
-my ($ok, $error) = $json->to_json_file($data, $file, \%options);
+ my ($ok, $error) = $json->to_json_file($data, $file, \%options);
 
 =cut
 sub to_json_file {
@@ -658,7 +658,7 @@ sub parse_mmap_file {
 
 =head2 get_error_string
 
- Returns the error message from the last call, if there was one, e.g.,
+Returns the error message from the last call, if there was one, e.g.,
 
  my $data = JSON::DWIW->from_json($json_str)
      or die "JSON error: " . JSON::DWIW->get_error_string;
@@ -667,7 +667,7 @@ sub parse_mmap_file {
      or die "JSON error: " . $json_obj->get_error_string;
 
 
- Aliases: get_err_str(), errstr()
+Aliases: get_err_str(), errstr()
 
 =cut
 sub get_error_string {
@@ -686,7 +686,7 @@ sub get_error_string {
 
 =head2 get_error_data
 
- Returns the error details from the last call, in a hash ref, e.g.,
+Returns the error details from the last call, in a hash ref, e.g.,
 
  $error_data = {
                 'byte' => 23,
@@ -697,9 +697,9 @@ sub get_error_string {
                 'line' => 1
               };
 
- This is really only useful when decoding JSON.
+This is really only useful when decoding JSON.
 
- Aliases: get_error(), error()
+Aliases: get_error(), error()
 
 =cut
 sub get_error_data {
@@ -718,8 +718,8 @@ sub get_error_data {
 
 =head2 get_stats
 
- Returns statistics from the last method called to encode or
- decode.  E.g., for an encoding (to_json() or to_json_file()),
+Returns statistics from the last method called to encode or
+decode.  E.g., for an encoding (to_json() or to_json_file()),
 
     $stats = {
                'bytes' => 78,
@@ -752,7 +752,7 @@ sub get_stats {
 
 =head2 true
 
- Returns an object that will get output as a true value when encoding to JSON.
+Returns an object that will get output as a true value when encoding to JSON.
 
 =cut
 
@@ -764,7 +764,7 @@ sub true {
 
 =head2 false
 
- Returns an object that will get output as a false value when encoding to JSON.
+Returns an object that will get output as a false value when encoding to JSON.
 
 =cut
 
@@ -774,48 +774,40 @@ sub false {
 
 =pod
 
+=head1 Utilities
+
+Following are some methods I use for debugging and testing.
+
+=head2 flagged_as_utf8($str)
+
+Returns true if the given string is flagged as utf-8.
+
+=head2 flag_as_utf8($str)
+
+Flags the given string as utf-8.
+
+=head2 unflag_as_utf8($str)
+
+Clears the flag that tells Perl the string is utf-8.
+
+=head2 code_point_to_hex_bytes($cp)
+
+Returns a string representing the byte sequence for $cp encoding in utf-8.  E.g.,
+
+ my $hex_bytes = JSON::DWIW->code_point_to_hex_bytes(0xe9);
+ print "$hex_bytes\n"; # \xc3\xa9
+
+=head2 bytes_to_code_points($str)
+
+Returns an array of code points from the given string, assuming the string is encoded in utf-8.
+
+=head2 peak_scalar($scalar)
+
+Dumps the internal structure of the given scalar.
+
 =head1 BENCHMARKS
 
- Latest benchmarks against JSON and JSON::Syck run on my MacBook
- Pro:
-
- Using a small data set:
-
-    Encode (50000 iterations):
-    ==========================
-                  Rate       JSON JSON::Syck JSON::DWIW
-    JSON        2648/s         --       -72%       -86%
-    JSON::Syck  9416/s       256%         --       -51%
-    JSON::DWIW 19380/s       632%       106%         --
-
-
-    Decode (50000 iterations):
-    ==========================
-                  Rate       JSON JSON::Syck JSON::DWIW
-    JSON        2288/s         --       -81%       -93%
-    JSON::Syck 12195/s       433%         --       -60%
-    JSON::DWIW 30675/s      1240%       152%         --
-
-
- Using a larger data set (8KB JSON string) generated from Yahoo!
- Local's search API (http://nanoref.com/yahooapis/mgPdGg)
-
-
-    Encode (1000 iterations):
-    =========================
-                Rate       JSON JSON::Syck JSON::DWIW
-    JSON       133/s         --       -54%       -66%
-    JSON::Syck 289/s       118%         --       -26%
-    JSON::DWIW 389/s       193%        35%         --
-
-
-    Decode (1000 iterations):
-    =========================
-                 Rate       JSON JSON::Syck JSON::DWIW
-    JSON       35.5/s         --       -92%       -94%
-    JSON::Syck  427/s      1103%         --       -25%
-    JSON::DWIW  571/s      1508%        34%         --
-
+Need new benchmarks here.
 
 =head1 DEPENDENCIES
 
@@ -840,6 +832,8 @@ Thanks to Asher Blum for help with testing.
 
 Thanks to Nigel Bowden for helping with compilation on Windows.
 
+Thanks to Robert Peters for discovering and tracking down the source of a number parsing bug.
+
 =head1 LICENSE AND COPYRIGHT
 
 Copyright (c) 2007-2008 Don Owens <don@regexguy.com>.  All rights reserved.
@@ -863,7 +857,7 @@ PURPOSE.
 
 =head1 VERSION
 
-0.24
+0.25
 
 =cut
 

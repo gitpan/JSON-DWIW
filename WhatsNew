@@ -1,4 +1,12 @@
-Version 0.24
+Version 0.26
+    * Fixed number parsing bug (rt.cpan.org #37541)
+    * Documented utility functions
+
+Version 0.25
+    * Fixed mmap failure on Linux
+    * Fixed (hopefully) another compilation problem on Solaris (rt.cpan.org #35040)
+
+Version 0.24 Tue 2008-04-14
     * Fixed compilation problem on Solaris (rt.cpan.org #35040)
     * Some code cleanup
     * Implemented utf-8 encoding/decoding from scratch when used by

@@ -117,7 +117,8 @@ typedef struct {
 #define ENSURE_STACK(ctx) ( (ctx)->stack_level >= (ctx)->stack_size - 1 ? GROW_STACK(ctx) : 0 )
 #define CUR_STACK_LEVEL(ctx) ((ctx)->stack_level)
 #define CUR_STACK_ENTRY(ctx) ( (parse_cb_stack_entry *)((ctx)->stack + (ctx)->stack_level) )
-#define POP_STACK(ctx) (memzero((void *)((ctx)->stack + (ctx)->stack_level), sizeof((ctx)->stack)), (ctx)->stack_level--);
+#define POP_STACK(ctx) memzero((void *)((ctx)->stack + (ctx)->stack_level), sizeof((ctx)->stack));\
+    (ctx)->stack_level--;
 #define PUSH_STACK_ENTRY(ctx) ( ENSURE_STACK(ctx), (ctx)->stack_level++, ( (parse_cb_stack_entry *)((ctx)->stack + (ctx)->stack_level) ) )
 
 static void

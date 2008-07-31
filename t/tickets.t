@@ -8,7 +8,7 @@ use warnings;
 
 use Test;
 
-BEGIN { plan tests => 3 }
+BEGIN { plan tests => 4 }
 
 use JSON::DWIW;
 
@@ -29,4 +29,11 @@ $json_str = '{$var1:true,var2:false,var3:null}';
 $data = JSON::DWIW::deserialize($json_str);
 ok(ref($data) eq 'HASH' and $data->{'$var1'} and not $data->{var2}
    and exists($data->{var3}) and not defined($data->{var3}));
+
+# rt.cpan.org #37541 - parsing -1.555555 returns a "not a digit error"
+$json_str = "[-1.555555, 5]";
+$data = JSON::DWIW->from_json($json_str);
+ok($data);
+
+
 

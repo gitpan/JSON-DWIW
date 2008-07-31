@@ -139,7 +139,7 @@ print_hex_line(FILE * fp, const unsigned char * buf, STRLEN buf_len) {
 
 
 static SV * to_json(self_context * self, SV * data_ref, int indent_level, unsigned int cur_level);
-
+static SV * get_ref_addr(SV * ref);
 
 
 #define JsSvLen(val) sv_len(val)
@@ -274,6 +274,7 @@ escape_json_str(self_context * self, SV * sv_str) {
     U8 unicode_bytes[5];
     int escape_unicode = 0;
     int pass_bad_char = 0;
+    uint32_t len32 = 0;
 
     memzero(unicode_bytes, 5); /* memzero macro provided by Perl */
 
@@ -409,6 +410,13 @@ escape_json_str(self_context * self, SV * sv_str) {
                   sv_catpvf(rv, "\\u%04x", this_uv);
               }
               else if (check_unicode && !pass_bad_char) {
+                  len32 = common_utf8_unicode_to_bytes((uint32_t)this_uv, (uint8_t *)unicode_bytes);
+                  if (len32 > 1) {
+                      SvUTF8_on(rv);
+                  }
+                  sv_catpvn(rv, (char *)unicode_bytes, len32);
+
+                  /*
                   tmp_str = convert_uv_to_utf8(unicode_bytes, this_uv);
                   if (PTR2UV(tmp_str) - PTR2UV(unicode_bytes) > 1) {
                       UNLESS (SvUTF8(rv)) {
@@ -416,6 +424,7 @@ escape_json_str(self_context * self, SV * sv_str) {
                       }
                   }
                   sv_catpvn(rv, (char *)unicode_bytes, PTR2UV(tmp_str) - PTR2UV(unicode_bytes));
+                  */
               }
               else {
                   tmp_char = (U8)this_uv;
@@ -562,6 +571,11 @@ setup_self_context(SV *self_sv, self_context *self) {
     ptr = hv_fetch((HV *)self_hash, "escape_multi_byte", 17, 0);
     if (ptr && SvTRUE(*ptr)) {
         self->flags |= kEscapeMultiByte;
+    }
+
+    ptr = hv_fetch((HV *)self_hash, "detect_circular_refs", 20, 0);
+    if (ptr && SvTRUE(*ptr)) {
+        self->ref_track = newHV();
     }
 
 
@@ -734,8 +748,10 @@ encode_hash(self_context * self, HV * hash, int indent_level, unsigned int cur_l
 #ifdef IS_PERL_5_8
             if (HeKWASUTF8(entry)) {
                 /* The hash key was utf-8 encoding, but the char * was
+
                    given to us with as the decoded bytes (e.g., utf-8 =>
                    latin1), so convert back to utf-8
+
                 */
                 sv_utf8_upgrade(tmp_sv);
             }
@@ -789,6 +805,7 @@ to_json(self_context * self, SV * data_ref, int indent_level, unsigned int cur_l
     U8 * data_str = NULL;
     STRLEN start = 0;
     STRLEN len = 0;
+    SV * ref_tmp = NULL;
 
     JSON_DEBUG("to_json() called");
 
@@ -798,6 +815,7 @@ to_json(self_context * self, SV * data_ref, int indent_level, unsigned int cur_l
         JSON_DEBUG("not a reference");
         data = data_ref;
         if (SvOK(data)) {
+
 
             /* scalar */
             type = SvTYPE(data);
@@ -867,6 +885,22 @@ to_json(self_context * self, SV * data_ref, int indent_level, unsigned int cur_l
     }
 
     JSON_DEBUG("is a reference");
+
+    if (self->ref_track) {
+        ref_tmp = get_ref_addr(data_ref);
+        if (hv_exists_ent(self->ref_track, ref_tmp, 0)) {
+            SvREFCNT_dec(ref_tmp);
+            /* return a stringified version */
+            sv_catpvn(rsv, "\"circular ref: ", 15);
+            sv_catsv(rsv, data_ref);
+            sv_catpvn(rsv, "\"", 1);
+            return rsv;
+        }
+        else {
+            hv_store_ent(self->ref_track, ref_tmp, newSV(0), 0);
+            SvREFCNT_dec(ref_tmp);
+        }
+    }
 
     if (sv_isobject(data_ref)) {
         if (sv_isa(data_ref, "JSON::DWIW::Boolean")) {
@@ -1140,7 +1174,7 @@ parse_mmap_file(SV * self, SV * file, SV * error_msg_ref) {
 #endif
 }
 
-SV *
+static SV *
 get_ref_addr(SV * ref) {
     SV * addr_str = Nullsv;
     SV * sv_addr = Nullsv;
@@ -1158,7 +1192,7 @@ get_ref_addr(SV * ref) {
     return addr_str;
 }
 
-SV *
+static SV *
 get_ref_type(SV * ref) {
     UNLESS (SvROK(ref)) {
         return newSV(0);
@@ -1266,17 +1300,22 @@ _xs_to_json(SV * self, SV * data, SV * error_msg_ref, SV * error_data_ref, SV * 
 
     if (SvOK(stats_ref)) {
         set_encode_stats(&self_context, stats_ref);
-     }
+    }
 
-     if (self_context.error) {
-         sv_setsv(SvRV(error_msg_ref), self_context.error);
+    if (self_context.error) {
+        sv_setsv(SvRV(error_msg_ref), self_context.error);
+        
+        if (SvOK(error_data_ref) && SvROK(error_data_ref) && self_context.error_data) {
+            passed_error_data_sv = SvRV(error_data_ref);
+            sv_setsv(passed_error_data_sv, self_context.error_data);
+        }
+        
+    }
 
-         if (SvOK(error_data_ref) && SvROK(error_data_ref) && self_context.error_data) {
-             passed_error_data_sv = SvRV(error_data_ref);
-             sv_setsv(passed_error_data_sv, self_context.error_data);
-         }
-
-     }
+    if (self_context.ref_track) {
+        SvREFCNT_dec(self_context.ref_track);
+        self_context.ref_track = Nullhv;
+    }
 
      RETVAL = rv;
 
@@ -1343,10 +1382,6 @@ SV *
 peek_scalar(SV * self, SV * val)
     CODE:
     self = self; /* get rid of compiler warnings */
-    sv_dump(val);
-    if (SvROK(val)) {
-        sv_dump(SvRV(val));
-    }
 
     RETVAL = &PL_sv_yes;
 
@@ -1424,16 +1459,19 @@ code_point_to_hex_bytes(SV *, SV * code_point_sv)
     U8 * tmp;
     STRLEN len = 0;
     SV * rv;
+    uint32_t len32 = 0;
 
     CODE:
     utf8_bytes[4] = '\x00';
     code_point = SvUV(code_point_sv);
-    tmp = convert_uv_to_utf8(utf8_bytes, code_point);
     rv = newSVpv("", 0);
-    if (PTR2UV(tmp) > PTR2UV(utf8_bytes)) {
-        STRLEN i;
-        len = PTR2UV(tmp) - PTR2UV(utf8_bytes);
-        for (i = 0; i < len; i++) {
+
+    len32 = common_utf8_unicode_to_bytes((uint32_t)code_point, (uint8_t *) utf8_bytes);
+    utf8_bytes[len32] = '\x00';
+
+    if (len32) {
+        uint32_t i;
+        for (i = 0; i < len32; i++) {
             sv_catpvf(rv, "\\x%02x", (unsigned int)utf8_bytes[i]);
         }
     }

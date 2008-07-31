@@ -446,7 +446,7 @@ json_parse_number(json_context *ctx, SV * tmp_str) {
     
     looking_at = JsNextChar(ctx);
     if (looking_at == '-') {
-        JsNextChar(ctx);
+        /* JsNextChar(ctx); */
         looking_at = JsNextChar(ctx);
         flags |= kParseNumberHaveSign;
     }

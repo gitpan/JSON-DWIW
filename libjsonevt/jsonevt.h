@@ -18,12 +18,14 @@
 
 */
 
-/* $Header: /repository/projects/libjsonevt/jsonevt.h,v 1.17 2008/03/19 08:39:58 don Exp $ */
+/* $Header: /repository/projects/libjsonevt/jsonevt.h,v 1.19 2008/04/19 01:44:47 don Exp $ */
 
 #ifndef JSONEVT_H
 #define JSONEVT_H
 
 #include <sys/types.h>
+
+#include "jsonevt_config.h"
 
 #ifdef __cplusplus
 #define JSON_DO_CPLUSPLUS_WRAP_BEGIN extern "C" {
@@ -58,6 +60,7 @@ JSON_DO_CPLUSPLUS_WRAP_BEGIN
 #define JSONEVT_HAVE_VARIADIC_MACROS
 #endif
 
+/* FIXME: probably should change this to ifdef HAVE_TYPE_UINT from jsonevt_config.h */
 #ifdef JSONEVT_ON_WINDOWS
 typedef unsigned int uint;
 #endif
