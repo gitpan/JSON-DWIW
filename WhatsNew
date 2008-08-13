@@ -1,3 +1,9 @@
+Version 0.27
+    * Documented the is_valid_utf8() method
+    * Added the upgrade_to_utf8() method
+    * Added shell-style comment support to the from_json() method
+    * Documented comment support
+
 Version 0.26
     * Fixed number parsing bug (rt.cpan.org #37541)
     * Documented utility functions

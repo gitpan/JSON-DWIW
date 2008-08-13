@@ -266,7 +266,6 @@ escape_json_str(self_context * self, SV * sv_str) {
     STRLEN needed_len = 0;
     STRLEN sv_pos = 0;
     STRLEN len = 0;
-    U8 * tmp_str = NULL;
     U8 tmp_char = 0x00;
     SV * rv;
     int check_unicode = 1; /* FIXME: get rid of this */
@@ -1383,6 +1382,8 @@ peek_scalar(SV * self, SV * val)
     CODE:
     self = self; /* get rid of compiler warnings */
 
+    sv_dump(val);
+
     RETVAL = &PL_sv_yes;
 
     OUTPUT:
@@ -1403,6 +1404,22 @@ is_valid_utf8(SV * self, SV * str)
     }
 
     RETVAL = rv;
+
+    OUTPUT:
+    RETVAL
+
+SV *
+upgrade_to_utf8(SV * self, SV * str)
+    CODE:
+    self = self;
+    sv_utf8_upgrade(str);
+
+    if (GIMME_V == G_VOID) {
+        RETVAL = &PL_sv_yes;
+    }
+    else {
+        RETVAL = newSVsv(str);
+    }
 
     OUTPUT:
     RETVAL
@@ -1452,12 +1469,38 @@ unflag_as_utf8(SV * self, SV * str)
     RETVAL
 
 SV *
+code_point_to_utf8_str(SV *, SV * code_point_sv)
+    PREINIT:
+    UV code_point;
+    U8 utf8_bytes[5];
+    SV * rv = Nullsv;
+    uint32_t len32 = 0;
+
+    CODE:
+    utf8_bytes[4] = '\x00';
+    code_point = SvUV(code_point_sv);
+
+    len32 = common_utf8_unicode_to_bytes((uint32_t)code_point, (uint8_t *)utf8_bytes);
+    utf8_bytes[len32] = '\x00';
+
+    if (len32) {
+        rv = newSVpv((char *)utf8_bytes, (STRLEN)len32);
+        SvUTF8_on(rv);
+    }
+    else {
+        rv = newSV(0);
+    }
+
+    RETVAL = rv;
+
+    OUTPUT:
+    RETVAL
+
+SV *
 code_point_to_hex_bytes(SV *, SV * code_point_sv)
     PREINIT:
     UV code_point;
     U8 utf8_bytes[5];
-    U8 * tmp;
-    STRLEN len = 0;
     SV * rv;
     uint32_t len32 = 0;
 

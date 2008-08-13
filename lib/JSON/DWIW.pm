@@ -116,6 +116,13 @@ Extra commas in objects/hashes and arrays are ignored, e.g.,
 Latin1 hexadecimal escape sequences (\xHH) are accepted, as in
 Javascript.  Also, the vertical tab escape \v is recognized (\u000b).
 
+=item comments
+
+C, C++, and shell-style comments are accepted.  That is
+
+ /* this is a comment */
+ // this is a comment
+ # this is also a comment
 
 =back
 
@@ -143,7 +150,7 @@ require DynaLoader;
 Exporter::export_ok_tags('all');
 
 # change in POD as well!
-our $VERSION = '0.26';
+our $VERSION = '0.27';
 
 {
     package JSON::DWIW::Exporter;
@@ -790,6 +797,18 @@ Flags the given string as utf-8.
 
 Clears the flag that tells Perl the string is utf-8.
 
+=head2 is_valid_utf8($str);
+
+Returns true if the given string is valid utf-8 (regardless of the flag).
+
+=head2 upgrade_to_utf8($str)
+
+Converts the string to utf-8, assuming it is latin1.  This effects $str itself in place, but also returns $str.
+
+=head2 code_point_to_utf8_str($cp)
+
+Returns a utf8 string containing the byte sequence for the given code point.
+
 =head2 code_point_to_hex_bytes($cp)
 
 Returns a string representing the byte sequence for $cp encoding in utf-8.  E.g.,
@@ -799,7 +818,7 @@ Returns a string representing the byte sequence for $cp encoding in utf-8.  E.g.
 
 =head2 bytes_to_code_points($str)
 
-Returns an array of code points from the given string, assuming the string is encoded in utf-8.
+Returns a reference to an array of code points from the given string, assuming the string is encoded in utf-8.
 
 =head2 peak_scalar($scalar)
 
@@ -857,7 +876,7 @@ PURPOSE.
 
 =head1 VERSION
 
-0.25
+0.27
 
 =cut
 

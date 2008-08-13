@@ -84,6 +84,13 @@ DESCRIPTION
         Latin1 hexadecimal escape sequences (\xHH) are accepted, as in
         Javascript. Also, the vertical tab escape \v is recognized (\u000b).
 
+    comments
+        C, C++, and shell-style comments are accepted. That is
+
+         /* this is a comment */
+         // this is a comment
+         # this is also a comment
+
 METHODS
   new(\%options)
     Create a new JSON::DWIW object.
@@ -264,6 +271,18 @@ Utilities
   unflag_as_utf8($str)
     Clears the flag that tells Perl the string is utf-8.
 
+  is_valid_utf8($str);
+    Returns true if the given string is valid utf-8 (regardless of the
+    flag).
+
+  upgrade_to_utf8($str)
+    Converts the string to utf-8, assuming it is latin1. This effects $str
+    itself in place, but also returns $str.
+
+  code_point_to_utf8_str($cp)
+    Returns a utf8 string containing the byte sequence for the given code
+    point.
+
   code_point_to_hex_bytes($cp)
     Returns a string representing the byte sequence for $cp encoding in
     utf-8. E.g.,
@@ -272,8 +291,8 @@ Utilities
      print "$hex_bytes\n"; # \xc3\xa9
 
   bytes_to_code_points($str)
-    Returns an array of code points from the given string, assuming the
-    string is encoded in utf-8.
+    Returns a reference to an array of code points from the given string,
+    assuming the string is encoded in utf-8.
 
   peak_scalar($scalar)
     Dumps the internal structure of the given scalar.
@@ -322,5 +341,5 @@ SEE ALSO
      L<JSON::Syck> (included in L<YAML::Syck>)
 
 VERSION
-    0.25
+    0.27
 

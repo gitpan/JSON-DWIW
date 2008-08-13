@@ -108,6 +108,7 @@ my $args = {
             clean => { FILES => $clean_str },
             # OPTIMIZE => '-Wall -O3 -fno-non-lvalue-assign -g',
             # OPTIMIZE => '-O2 -g -Wall',
+            # OPTIMIZE => '-Wall -O3',
            };
 
 $args->{DEFINE} = "-DHAVE_JSONEVT -DNO_VERSION_IN_ERROR";

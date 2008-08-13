@@ -4,7 +4,7 @@
 
 /*
 
- Copyright (c) 2007 Don Owens <don@regexguy.com>.  All rights reserved.
+ Copyright (c) 2007-2008 Don Owens <don@regexguy.com>.  All rights reserved.
 
  This is free software; you can redistribute it and/or modify it under
  the Perl Artistic license.  You should have received a copy of the
@@ -18,7 +18,7 @@
 
 */
 
-/* $Header: /repository/projects/libjsonevt/jsonevt.h,v 1.19 2008/04/19 01:44:47 don Exp $ */
+/* $Header: /repository/projects/libjsonevt/jsonevt.h,v 1.20 2008/08/13 04:02:26 don Exp $ */
 
 #ifndef JSONEVT_H
 #define JSONEVT_H

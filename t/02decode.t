@@ -9,7 +9,7 @@ use Test;
 
 # main
 {
-    BEGIN { plan tests => 13 }
+    BEGIN { plan tests => 15 }
 
     use JSON::DWIW;
 
@@ -109,13 +109,27 @@ use Test;
       );
 
 
-    # comment
+    # C style comment
     $json_str = '{"test_empty_hash":{} /*,"test_empty_array":[] */}';
     $data = $json_obj->from_json($json_str);
     ok(ref($data) eq 'HASH' and scalar(keys(%$data)) == 1
        and ref($data->{test_empty_hash}) eq 'HASH'
        and scalar(keys %{$data->{test_empty_hash}}) == 0);
-    
+
+    # C++ style comments
+    $json_str = '{"test_empty_hash":{} ' . "\n" . '//,"test_empty_array":[] ' . "\n" . '}';
+    $data = JSON::DWIW->from_json($json_str);
+    ok(ref($data) eq 'HASH' and scalar(keys(%$data)) == 1
+       and ref($data->{test_empty_hash}) eq 'HASH'
+       and scalar(keys %{$data->{test_empty_hash}}) == 0);
+
+    # Perl, shell, etc., style comments
+    $json_str = '{"test_empty_hash":{} ' . "\n" . '#,"test_empty_array":[] ' . "\n" . '}';
+    $data = JSON::DWIW->from_json($json_str);
+    ok(ref($data) eq 'HASH' and scalar(keys(%$data)) == 1
+       and ref($data->{test_empty_hash}) eq 'HASH'
+       and scalar(keys %{$data->{test_empty_hash}}) == 0);
+
 }
 
 exit 0;

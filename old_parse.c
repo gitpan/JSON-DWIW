@@ -353,6 +353,18 @@ json_eat_whitespace(json_context *ctx, UV flags) {
                   break_out = 1;
               }
               break;
+
+          case '#':
+                  JSON_DEBUG("in shell style comment at pos %d", ctx->pos);
+                  while (ctx->pos < ctx->len) {
+                      JsNextCharWithArg(ctx, tmp_uv, tmp_len);
+                      this_char = JsCurChar(ctx);
+                      if (this_char == 0x0a || this_char == 0x0d) {
+                          /* FIXME: should check for unicode line break property */
+                          break;
+                      }
+                  }
+              break;
             
           case '/':
               JsNextCharWithArg(ctx, tmp_uv, tmp_len);
@@ -364,7 +376,7 @@ json_eat_whitespace(json_context *ctx, UV flags) {
                       JsNextCharWithArg(ctx, tmp_uv, tmp_len);
                       this_char = JsCurChar(ctx);
                       if (this_char == 0x0a || this_char == 0x0d) {
-                          /* FIXME: should peak at the next to see if windows line ending, etc. */
+                          /* FIXME: should check for unicode line break property */
                           break;
                       }
                   }

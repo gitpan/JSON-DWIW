@@ -12,7 +12,7 @@ use Test;
     use JSON::DWIW;
 
     if (JSON::DWIW->has_deserialize) {
-        plan tests => 19;
+        plan tests => 21;
     }
     else {
         plan tests => 1;
@@ -52,9 +52,23 @@ use Test;
     ok(ref($data) eq 'HASH' and not $data->{var2});
     ok(ref($data) eq 'HASH' and exists($data->{var3}) and not defined($data->{var3}));
 
+    # C style comments
+    $json_str = '{"test_empty_hash":{} /*,"test_empty_array":[] */}';
+    $data = JSON::DWIW::deserialize($json_str);
+    ok(ref($data) eq 'HASH' and scalar(keys(%$data)) == 1
+       and ref($data->{test_empty_hash}) eq 'HASH'
+       and scalar(keys %{$data->{test_empty_hash}}) == 0);
+
     
     # C++ style comments
     $json_str = '{"test_empty_hash":{} ' . "\n" . '//,"test_empty_array":[] ' . "\n" . '}';
+    $data = JSON::DWIW::deserialize($json_str);
+    ok(ref($data) eq 'HASH' and scalar(keys(%$data)) == 1
+       and ref($data->{test_empty_hash}) eq 'HASH'
+       and scalar(keys %{$data->{test_empty_hash}}) == 0);
+
+    # Perl, shell, etc., style comments
+    $json_str = '{"test_empty_hash":{} ' . "\n" . '#,"test_empty_array":[] ' . "\n" . '}';
     $data = JSON::DWIW::deserialize($json_str);
     ok(ref($data) eq 'HASH' and scalar(keys(%$data)) == 1
        and ref($data->{test_empty_hash}) eq 'HASH'

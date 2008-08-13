@@ -18,7 +18,7 @@
 
 */
 
-/* $Header: /repository/projects/libjsonevt/jsonevt.c,v 1.43 2008/04/19 01:44:47 don Exp $ */
+/* $Header: /repository/projects/libjsonevt/jsonevt.c,v 1.44 2008/08/13 04:02:26 don Exp $ */
 
 /*
 #if defined(__WIN32) || defined(WIN32) || defined(_WIN32)
@@ -172,7 +172,7 @@ next_char(json_context * ctx) {
     return ctx->cur_char;
 }
 
-#ifdef JSONEVT_ON_WINDOWS
+#if defined(JSONEVT_ON_WINDOWS) || !defined(HAVE_FUNC_VASPRINTF)
 static int
 vasprintf(char **ret, const char *fmt, va_list ap) {
     char buf[4096];
@@ -205,6 +205,9 @@ vasprintf(char **ret, const char *fmt, va_list ap) {
 
     return rv;
 }
+
+#endif
+#if defined(JSONEVT_ON_WINDOWS) || !defined(HAVE_FUNC_ASPRINTF)
 
 static int
 asprintf(char ** ret, const char * fmt, ...) {
