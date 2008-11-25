@@ -17,12 +17,54 @@ Copyright (c) 2007-2008 Don Owens <don@regexguy.com>.  All rights reserved.
  PURPOSE.
 */
 
-/* $Header: /repository/owens_lib/cpan/JSON/DWIW/old_parse.h,v 1.1 2008/04/15 03:47:02 don Exp $ */
+/* $Header: /repository/owens_lib/cpan/JSON/DWIW/old_parse.h,v 1.2 2008/11/21 04:28:19 don Exp $ */
 
 #ifndef OLD_PARSE_H
 #define OLD_PARSE_H
 
 #include "old_common.h"
+
+#define CNVRT_NONE(x) (x)
+
+#define CTX_FMT_pos STRLuf
+#define CTX_CNVRT_pos(x) PSTRL(x)
+#define CTX_PRNT_pos CTX_CNVRT_pos(ctx->pos)
+
+/*
+#define CTX_FMT_len STRLuf
+#define CTX_CNVRT_len(x) PSTRL(x)
+#define CTX_PRNT_len CTX_CNVRT_len(ctx->len)
+*/
+
+/*
+#define FMT_CHAR_POS "u"
+#define CTX_CNVRT_CHAR_POS(x) CNVRT_NONE(x)
+
+#define FMT_CHAR_COL "u"
+#define CTX_CNVRT_CHAR_COL(x) CNVRT_NONE(x)
+
+#define FMT_ERR_POS "u"
+#define CTX_CNVRT_ERR_POS(x) CNVRT_NONE(x)
+
+#define FMT_ERR_CHAR_POS "u"
+#define CTX_CNVRT_ERR_CHAR_POS(x) CNVRT_NONE(x)
+
+#define FMT_ERR_LINE "u"
+#define CTX_CNVRT_ERR_LINE(x) CNVRT_NONE(x)
+
+#define FMT_ERR_COL "u"
+#define CTX_CNVRT_ERR_COL(x) CNVRT_NONE(x)
+
+#define FMT_ERR_CHAR_COL "u"
+#define CTX_CNVRT_ERR_CHAR_COL(x) CNVRT_NONE(x)
+*/
+
+/*
+#define DEF_CTX_TYPE(type, name, fmt, cnvrt) \
+    #define FMT_ ## name fmt \
+    #define CNVRT_ ## cnvrt \
+    type name
+    */
 
 /* for converting from JSON */
 typedef struct {

@@ -18,7 +18,7 @@
 
 */
 
-/* $Header: /repository/projects/libjsonevt/jsonevt.c,v 1.44 2008/08/13 04:02:26 don Exp $ */
+/* $Header: /repository/projects/libjsonevt/jsonevt.c,v 1.47 2008/11/22 08:26:11 don Exp $ */
 
 /*
 #if defined(__WIN32) || defined(WIN32) || defined(_WIN32)
@@ -172,9 +172,11 @@ next_char(json_context * ctx) {
     return ctx->cur_char;
 }
 
-#if defined(JSONEVT_ON_WINDOWS) || !defined(HAVE_FUNC_VASPRINTF)
 static int
-vasprintf(char **ret, const char *fmt, va_list ap) {
+js_vasprintf(char **ret, const char *fmt, va_list *ap_ptr) {
+#if !defined(JSONEVT_ON_WINDOWS) && defined(HAVE_FUNC_VASPRINTF)
+    return vasprintf(ret, fmt, *ap_ptr);
+#else
     char buf[4096];
     int rv = 0;
 
@@ -184,7 +186,7 @@ vasprintf(char **ret, const char *fmt, va_list ap) {
     
     *ret = NULL;
 
-    rv = vsnprintf(buf, 4096, fmt, ap);
+    rv = vsnprintf(buf, 4096, fmt, *ap_ptr);
     if (rv < 0) {
         return rv;
     }
@@ -204,23 +206,22 @@ vasprintf(char **ret, const char *fmt, va_list ap) {
     (*ret)[rv] = '\x00'; /* in case the original buf was not large enough */
 
     return rv;
+#endif
 }
 
-#endif
-#if defined(JSONEVT_ON_WINDOWS) || !defined(HAVE_FUNC_ASPRINTF)
-
 static int
-asprintf(char ** ret, const char * fmt, ...) {
+js_asprintf(char ** ret, const char * fmt, ...) {
     va_list ap;
     int rv = 0;
     
     va_start(ap, fmt);
-    rv = vasprintf(ret, fmt, ap);
+
+    rv = js_vasprintf(ret, fmt, &ap);
+
     va_end(ap);
 
     return rv;
 }
-#endif
 
 static char *
 vset_error(json_context * ctx, char * file, uint line, char * fmt, va_list ap) {
@@ -239,21 +240,21 @@ vset_error(json_context * ctx, char * file, uint line, char * fmt, va_list ap) {
     }
 
 #if JSON_DO_DEBUG
-    loc_len = asprintf(&loc, "%s (%u) v%u.%u.%u byte %u, char %u, line %u, col %u (byte col %u) - ",
+    loc_len = js_asprintf(&loc, "%s (%u) v%u.%u.%u byte %u, char %u, line %u, col %u (byte col %u) - ",
         file, line, JSON_EVT_MAJOR_VERSION, JSON_EVT_MINOR_VERSION, JSON_EVT_PATCH_LEVEL,
         CUR_POS(ctx), CUR_CHAR_POS(ctx), CUR_LINE(ctx), CUR_COL(ctx), CUR_BYTE_COL(ctx));
 #else
 #if NO_VERSION_IN_ERROR
-    loc_len = asprintf(&loc, "byte %u, char %u, line %u, col %u (byte col %u) - ",
+    loc_len = js_asprintf(&loc, "byte %u, char %u, line %u, col %u (byte col %u) - ",
         CUR_POS(ctx), CUR_CHAR_POS(ctx), CUR_LINE(ctx), CUR_COL(ctx), CUR_BYTE_COL(ctx));
 #else
-    loc_len = asprintf(&loc, "v%u.%u.%u byte %u, char %u, line %u, col %u (byte col %u) - ",
+    loc_len = js_asprintf(&loc, "v%u.%u.%u byte %u, char %u, line %u, col %u (byte col %u) - ",
         JSON_EVT_MAJOR_VERSION, JSON_EVT_MINOR_VERSION, JSON_EVT_PATCH_LEVEL,
         CUR_POS(ctx), CUR_CHAR_POS(ctx), CUR_LINE(ctx), CUR_COL(ctx), CUR_BYTE_COL(ctx));
 #endif
 #endif
 
-    msg_len = vasprintf(&msg, fmt, ap);
+    msg_len = js_vasprintf(&msg, fmt, &ap);
 
     error = (char *)malloc(loc_len + msg_len + 1);
 	MEM_CPY(error, loc, loc_len);
@@ -293,9 +294,15 @@ eat_whitespace(json_context *ctx, int commas_are_whitespace, uint line) {
     uint last_char_valid = 0;
     char * tmp_buf = NULL;
 
+    SETUP_TRACE;
+
+    PDB("pos=%u, len=%u", ctx->pos, ctx->len);
+
     if (! HAVE_MORE_CHARS(ctx)) {
         return 0;
     }
+
+    SETUP_TRACE;
 
     while (keep_going && HAVE_MORE_CHARS(ctx)) {
         this_char = PEEK_CHAR(ctx);
@@ -1099,10 +1106,13 @@ parse_value(json_context * ctx, uint level, uint flags) {
     uint this_char;
 
     SETUP_TRACE;
+    PDB("HERE");
 
     EAT_WHITESPACE(ctx, 0);
 
     this_char = PEEK_CHAR(ctx);
+
+    PDB("HERE - char is %#04x", this_char);
 
     /* JSON_DEBUG("parse_value() - pos %u, char %c", CUR_POS(ctx), this_char); */
     
@@ -1117,6 +1127,7 @@ parse_value(json_context * ctx, uint level, uint flags) {
           break;
 
       case '{':
+          PDB("Found hash");
           return parse_hash(ctx, level, flags);
           break;
           
@@ -1162,7 +1173,8 @@ jsonevt_free_ctx(jsonevt_ctx * ext_ctx) {
 }
 
 void
-jsonevt_reset_ctx(jsonevt_ctx * ext_ctx) {
+jsonevt_reset_ctx(jsonevt_ctx * ctx) {
+    void * cb_data;
     json_string_cb string_cb;
     json_array_begin_cb begin_array_cb;
     json_array_end_cb end_array_cb;
@@ -1177,44 +1189,59 @@ jsonevt_reset_ctx(jsonevt_ctx * ext_ctx) {
     json_null_cb null_cb;
     json_comment_cb comment_cb;
 
-    UNLESS (ext_ctx) {
+    uint options;
+    uint bad_char_policy;
+
+    UNLESS (ctx) {
         return;
     }
 
-    string_cb = ext_ctx->string_cb;
-    begin_array_cb = ext_ctx->begin_array_cb;
-    end_array_cb = ext_ctx->end_array_cb;
-    begin_array_element_cb = ext_ctx->begin_array_element_cb;
-    end_array_element_cb = ext_ctx->end_array_element_cb;
-    begin_hash_cb = ext_ctx->begin_hash_cb;
-    end_hash_cb = ext_ctx->end_hash_cb;
-    begin_hash_entry_cb = ext_ctx->begin_hash_entry_cb;
-    end_hash_entry_cb = ext_ctx->end_hash_entry_cb;
-    number_cb = ext_ctx->number_cb;
-    bool_cb = ext_ctx->bool_cb;
-    null_cb = ext_ctx->null_cb;
-    comment_cb = ext_ctx->comment_cb;
+    ctx->ext_ctx = ctx;
 
-    if (ext_ctx->error) {
-        free(ext_ctx->error);
-        ext_ctx->error = NULL;
+    cb_data = ctx->cb_data;
+
+    string_cb = ctx->string_cb;
+    begin_array_cb = ctx->begin_array_cb;
+    end_array_cb = ctx->end_array_cb;
+    begin_array_element_cb = ctx->begin_array_element_cb;
+    end_array_element_cb = ctx->end_array_element_cb;
+    begin_hash_cb = ctx->begin_hash_cb;
+    end_hash_cb = ctx->end_hash_cb;
+    begin_hash_entry_cb = ctx->begin_hash_entry_cb;
+    end_hash_entry_cb = ctx->end_hash_entry_cb;
+    number_cb = ctx->number_cb;
+    bool_cb = ctx->bool_cb;
+    null_cb = ctx->null_cb;
+    comment_cb = ctx->comment_cb;
+
+    options = ctx->options;
+    bad_char_policy = ctx->bad_char_policy;
+
+    if (ctx->error) {
+        free(ctx->error);
+        ctx->error = NULL;
     }
 
-    ZERO_MEM((void *)ext_ctx, sizeof(*ext_ctx)); 
+    ZERO_MEM((void *)ctx, sizeof(*ctx)); 
 
-    ext_ctx->string_cb = string_cb;
-    ext_ctx->begin_array_cb = begin_array_cb;
-    ext_ctx->end_array_cb = end_array_cb;
-    ext_ctx->begin_array_element_cb = begin_array_element_cb;
-    ext_ctx->end_array_element_cb = end_array_element_cb;
-    ext_ctx->begin_hash_cb = begin_hash_cb;
-    ext_ctx->end_hash_cb = end_hash_cb;
-    ext_ctx->begin_hash_entry_cb = begin_hash_entry_cb;
-    ext_ctx->end_hash_entry_cb = end_hash_entry_cb;
-    ext_ctx->number_cb = number_cb;
-    ext_ctx->bool_cb = bool_cb;
-    ext_ctx->null_cb = null_cb;
-    ext_ctx->comment_cb = comment_cb;
+    ctx->cb_data = cb_data;
+
+    ctx->string_cb = string_cb;
+    ctx->begin_array_cb = begin_array_cb;
+    ctx->end_array_cb = end_array_cb;
+    ctx->begin_array_element_cb = begin_array_element_cb;
+    ctx->end_array_element_cb = end_array_element_cb;
+    ctx->begin_hash_cb = begin_hash_cb;
+    ctx->end_hash_cb = end_hash_cb;
+    ctx->begin_hash_entry_cb = begin_hash_entry_cb;
+    ctx->end_hash_entry_cb = end_hash_entry_cb;
+    ctx->number_cb = number_cb;
+    ctx->bool_cb = bool_cb;
+    ctx->null_cb = null_cb;
+    ctx->comment_cb = comment_cb;
+
+    ctx->options = options;
+    ctx->bad_char_policy = bad_char_policy;
 
 }
 
@@ -1559,36 +1586,21 @@ jsonevt_parse(jsonevt_ctx * ext_ctx, char * buf, uint len) {
     
     /* memzero((void *)&ctx, sizeof(ctx)); */
 
+    jsonevt_reset_ctx(ctx);
+
     ctx->buf = buf;
     ctx->len = len;
     ctx->pos = 0;
     ctx->char_pos = 0;
     ctx->cur_line = 1;
 
-    /*
-    ctx.cb_data = ext_ctx->cb_data;
-
-    ctx.string_cb = ext_ctx->string_cb;
-    ctx.number_cb = ext_ctx->number_cb;
-    ctx.begin_array_cb = ext_ctx->begin_array_cb;
-    ctx.end_array_cb = ext_ctx->end_array_cb;
-    ctx.begin_array_element_cb = ext_ctx->begin_array_element_cb;
-    ctx.end_array_element_cb = ext_ctx->end_array_element_cb;
-    ctx.begin_hash_cb = ext_ctx->begin_hash_cb;
-    ctx.end_hash_cb = ext_ctx->end_hash_cb;
-    ctx.begin_hash_entry_cb = ext_ctx->begin_hash_entry_cb;
-    ctx.end_hash_entry_cb = ext_ctx->end_hash_entry_cb;
-    ctx.bool_cb = ext_ctx->bool_cb;
-    ctx.null_cb = ext_ctx->null_cb;
-    ctx.comment_cb = ext_ctx->comment_cb;
-    ctx.options = ext_ctx->options;
-    ctx.bad_char_policy = ext_ctx->bad_char_policy;
-
-    ctx.ext_ctx = ext_ctx;
-
-    */
+    ctx->line = ctx->cur_line;
+    ctx->byte_count = 0;
+    ctx->char_count = 0;
 
     ctx->ext_ctx = ctx;
+
+    /* ZERO_MEM( &(ctx->flags), sizeof(struct context_flags_struct) ); */
 
     if (check_bom(ctx)) {
         rv = parse_value(ctx, 0, 0);
@@ -1603,12 +1615,28 @@ jsonevt_parse(jsonevt_ctx * ext_ctx, char * buf, uint len) {
         }
     }
 
-    ext_ctx->line = ctx->cur_line;
-    ext_ctx->byte_count = ctx->cur_byte_pos;
-    ext_ctx->char_count = ctx->cur_char_pos;
+    ctx->line = ctx->cur_line;
+    ctx->byte_count = ctx->cur_byte_pos;
+    ctx->char_count = ctx->cur_char_pos;
 
     return rv;
 }
+
+void
+jsonevt_get_version(uint *major, uint *minor, uint *patch) {
+    if (major) {
+        *major = JSON_EVT_MAJOR_VERSION;
+    }
+
+    if (minor) {
+        *minor = JSON_EVT_MINOR_VERSION;
+    }
+
+    if (patch) {
+        *patch = JSON_EVT_PATCH_LEVEL;
+    }
+}
+
 
 int
 jsonevt_parse_file(jsonevt_ctx * ext_ctx, char * file) {

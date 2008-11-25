@@ -18,7 +18,7 @@
 
 */
 
-/* $Header: /repository/projects/libjsonevt/jsonevt.h,v 1.20 2008/08/13 04:02:26 don Exp $ */
+/* $Header: /repository/projects/libjsonevt/jsonevt.h,v 1.22 2008/09/27 23:28:44 don Exp $ */
 
 #ifndef JSONEVT_H
 #define JSONEVT_H
@@ -132,6 +132,8 @@ uint jsonevt_get_stats_line_count(jsonevt_ctx * ctx);
 uint jsonevt_get_stats_byte_count(jsonevt_ctx * ctx);
 uint jsonevt_get_stats_char_count(jsonevt_ctx * ctx);
 
+void jsonevt_get_version(uint *major, uint *minor, uint *patch);
+
 /* Use these inside a callback to find out where the parser is in the buffer/file. */
 /* These will be implemented later. */
 /*
@@ -165,7 +167,7 @@ uint jsonevt_get_byte_pos(json_ctx * ctx);
 
 #define JSON_EVT_MAJOR_VERSION 0
 #define JSON_EVT_MINOR_VERSION 0
-#define JSON_EVT_PATCH_LEVEL 2
+#define JSON_EVT_PATCH_LEVEL 8
 
 JSON_DO_CPLUSPLUS_WRAP_END
 

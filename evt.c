@@ -667,7 +667,7 @@ hash_begin_callback(void * cb_data, uint flags, uint level) {
 
     push_stack_val(ctx, newRV_noinc((SV *)newHV()));
 
-    LOG_DEBUG("in hash_begin callback at level %u, cb_data is %p", level, ctx);
+    LOG_DEBUG("in hash_begin callback at level %u, cb_data is %"UVxf, level, PTR2UV(ctx));
 
     return 0;
 }
@@ -681,7 +681,7 @@ hash_end_callback(void * cb_data, uint flags, uint level) {
         POP_STACK(ctx);
     }
 
-    LOG_DEBUG("in hash_end callback at level %u, cb_data is %p", level, ctx);
+    LOG_DEBUG("in hash_end callback at level %u, cb_data is %"UVxf, level, PTR2UV(ctx));
 
     return 0;
 }

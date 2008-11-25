@@ -81,10 +81,12 @@ do_system_with_file_redirect(int argc, char *const argv[ ], const char *file) {
     return rv;
 }
 
+/*
 static int
 do_system(int argc, char *const argv[ ]) {
     return do_system_with_redirect(argc, argv, NULL, NULL);
 }
+*/
 
 static void
 print_head(FILE *fp) {
@@ -142,8 +144,9 @@ test_include(const char *include_file, int exec_argc, char **exec_argv) {
 }
 
 static int
-test_func(const char *func_name, int exec_argc, char **exec_argv) {
+test_func(const char *func_name, int exec_argc, char **exec_argv, char *test_exec) {
     FILE *fp = fopen(g_test_file, "w");
+    
 
     if (! fp) {
         fprintf(stderr, "\ncouldn't open file %s for output!\n", g_test_file);
@@ -160,6 +163,10 @@ test_func(const char *func_name, int exec_argc, char **exec_argv) {
     fclose(fp);
 
     if (do_system_with_file_redirect(exec_argc, exec_argv, "config_output.txt")) {
+        return 0;
+    }
+
+    if (do_system_with_file_redirect(1, &test_exec, "config_output.txt")) {
         return 0;
     }
 
@@ -201,6 +208,7 @@ main(int argc, char **argv) {
     char *out_file = "jsonevt_config.h";
     char *name;
     char *file;
+    char *test_exec;
     FILE *conf_fh;
     /* int rv; */
     int exec_argc;
@@ -222,6 +230,7 @@ main(int argc, char **argv) {
         { "_vsnprintf", "_VSNPRINTF" },
         { "vasprintf", "VASPRINTF" },
         { "asprintf", "ASPRINTF" },
+        { "my_dummy_func", "MY_DUMMY_FUNC" },
         {NULL}
     };
 
@@ -232,13 +241,15 @@ main(int argc, char **argv) {
 
     test_rec *hp;
 
-    if (argc < 3) {
-        fprintf(stderr, "Usage: make_config <out_file> <compiler_cmd> <compiler_cmd> ...\n\n");
+    if (argc < 4) {
+        fprintf(stderr, "Usage: make_config <out_file> <test_exec> <compiler_cmd> <compiler_cmd> ...\n\n");
         return 1;
     }
 
     first_arg_count = 1;
     out_file = argv[1];
+    first_arg_count++;
+    test_exec = argv[2];
     first_arg_count++;
 
     exec_argc = argc - first_arg_count;
@@ -286,10 +297,13 @@ main(int argc, char **argv) {
         name = hp->name;
 
         fprintf(conf_fh, "/* %s */\n", file);
-        if (test_func(file, exec_argc, exec_argv)) {
+        if (test_func(file, exec_argc, exec_argv, test_exec)) {
             fprintf(conf_fh, "#ifndef HAVE_FUNC_%s\n", name);
             fprintf(conf_fh, "#define HAVE_FUNC_%s 1\n", name);
             fprintf(conf_fh, "#endif\n");            
+        }
+        else {
+            fprintf(conf_fh, "/* #define HAVE_FUNC_%s 1 */\n", name);
         }
 
         fprintf(conf_fh, "\n");
@@ -307,7 +321,7 @@ main(int argc, char **argv) {
         fprintf(conf_fh, "/* %s */\n", file);
 
         if (test_type(file, exec_argc, exec_argv, conf_fh)) {
-           fprintf(conf_fh, "#ifndef HAVE_TYPE_%s\n", name);
+            fprintf(conf_fh, "#ifndef HAVE_TYPE_%s\n", name);
             fprintf(conf_fh, "#define HAVE_TYPE_%s 1\n", name);
             fprintf(conf_fh, "#endif\n");
         }

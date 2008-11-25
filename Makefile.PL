@@ -55,7 +55,8 @@ sub MY::postamble {
     my $make_conf = File::Spec->catfile($src_dir, 'make_config');
     # my $exec_make_conf = File::Spec->rel2abs('make_config');
     my $exec_make_conf = File::Spec->rel2abs($make_conf);
-    $exec_make_conf .= " $config_h " . $cc;
+    # $exec_make_conf .= " $config_h " . $cc;
+    $exec_make_conf .= " $config_h ./check_config " . $cc_main . ' ' . $exec_output_name->('check_config');
 
 #     print "\n\nmake_conf=$make_conf\n\n";
 #     print "cc_main=$cc_main\n\n";
@@ -88,8 +89,30 @@ sub MY::postamble {
     return $stuff;
 }
 
+sub MY::post_constants {
+    my ($self) = @_;
+
+    my @updates;
+
+    my $optimize = $self->{OPTIMIZE};
+    $optimize = '' unless $optimize;
+    
+    if ($ENV{DEVEL_JSON_DWIW}) {
+        $optimize .= ' -Wall' unless $optimize =~ /-Wall/;
+        $optimize .= ' -Werror' unless $optimize =~ /-Werror/;
+    }
+
+    if ($ENV{DEBUG_JSON_DWIW}) {
+        $optimize .= ' -DDO_DEBUG';
+    }
+
+    push @updates, "OPTIMIZE = $optimize";
+
+    return join("\n", @updates);
+}
+
 my $clean_str = join(' ', map { File::Spec->catfile('libjsonevt', $_) }
-                     ('*.a', '*.so', '*$(OBJ_EXT)'));
+                     ('*.a', '*.so', '*$(OBJ_EXT)', 'jsonevt_config.h', 'make_config'));
 
 my $args = {
             NAME => 'JSON::DWIW',
@@ -108,7 +131,7 @@ my $args = {
             clean => { FILES => $clean_str },
             # OPTIMIZE => '-Wall -O3 -fno-non-lvalue-assign -g',
             # OPTIMIZE => '-O2 -g -Wall',
-            # OPTIMIZE => '-Wall -O3',
+            # OPTIMIZE => '-Wall -O3 -Werror',
            };
 
 $args->{DEFINE} = "-DHAVE_JSONEVT -DNO_VERSION_IN_ERROR";

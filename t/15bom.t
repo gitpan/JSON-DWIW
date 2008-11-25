@@ -8,7 +8,7 @@ use warnings;
 
 use Test;
 
-BEGIN { plan tests => 5 }
+BEGIN { plan tests => 6 }
 
 use JSON::DWIW;
 
@@ -30,6 +30,7 @@ ok(not defined($data) and JSON::DWIW->get_error_string);
 
 $str = qq{\xFF\xFE\x00\x00{"stuff":"blah"}};
 $data = JSON::DWIW->from_json($str);
+ok(1); # still alive
 ok(not defined($data) and JSON::DWIW->get_error_string);
 
 $str = qq{\x00\x00\xFE\xFF{"stuff":"blah"}};

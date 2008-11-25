@@ -51,14 +51,14 @@ JSON_TRACE(char *fmt, ...) {
 
 
 static SV *
-vjson_encode_error(self_context * ctx, const char * file, int line_num, const char * fmt, va_list ap) {
+vjson_encode_error(self_context * ctx, const char * file, int line_num, const char * fmt, va_list *ap_ptr) {
     SV * error = newSVpv("", 0);
     bool junk = 0;
     HV * error_data = Nullhv;
 
     sv_setpvf(error, "JSON::DWIW v%s - ", MOD_VERSION);
 
-    sv_vcatpvfn(error, fmt, strlen(fmt), &ap, (SV **)0, 0, &junk);
+    sv_vcatpvfn(error, fmt, strlen(fmt), ap_ptr, (SV **)0, 0, &junk);
 
     error_data = newHV();
     ctx->error_data = newRV_noinc((SV *)error_data);
@@ -74,7 +74,7 @@ json_encode_error(self_context * ctx, const char * file, int line_num, const cha
     SV * error;
     
     va_start(ap, fmt);
-    error = vjson_encode_error(ctx, file, line_num, fmt, ap);
+    error = vjson_encode_error(ctx, file, line_num, fmt, &ap);
     va_end(ap);
 
     return error;
@@ -99,7 +99,7 @@ JSON_ENCODE_ERROR(self_context * ctx, const char * fmt, ...) {
     SV * error;
 
     va_start(ap, fmt);
-    error = vjson_encode_error(ctx, NULL, 0, fmt, ap);
+    error = vjson_encode_error(ctx, NULL, 0, fmt, &ap);
     va_end(ap);
 
     return error;
@@ -545,6 +545,14 @@ setup_self_context(SV *self_sv, self_context *self) {
     }
     
     self_hash = SvRV(self_sv);
+
+    /* HvUSEDKEYS(hv) */
+    /* HvKEYS(hv) */
+    if (HvKEYS(self_hash) == 0) {
+        /* empty hash, so return early */
+        return;
+    }
+
     ptr = hv_fetch((HV *)self_hash, "bare_keys", 9, 0);
     if (ptr && SvTRUE(*ptr)) {
         self->bare_keys = 1;
@@ -1156,7 +1164,7 @@ parse_mmap_file(SV * self, SV * file, SV * error_msg_ref) {
         return &PL_sv_undef;
     }
 
-    JSON_DEBUG("HERE 2 - len=%u, base=%p\n", len, base);
+    JSON_DEBUG("HERE 2 - len=%u, base=%"UVxf"\n", len, PTR2UV(base));
     JSON_DEBUG("data: ");
     fread(base, 1, len, stdout);
     JSON_DEBUG("\n");
@@ -1390,6 +1398,28 @@ peek_scalar(SV * self, SV * val)
     RETVAL
 
 SV *
+has_high_bit_bytes(SV *self, SV *val)
+    PREINIT:
+    U8 * s;
+    STRLEN len;
+    STRLEN i;
+
+    CODE:
+    self = self;
+    RETVAL = &PL_sv_no;
+    s = (U8 *)SvPV(val, len);
+
+    for (i = 0; i < len; i++) {
+        if (s[i] > 0x80) {
+            RETVAL = &PL_sv_yes;
+        }
+    }
+
+    OUTPUT:
+    RETVAL
+
+
+SV *
 is_valid_utf8(SV * self, SV * str)
     PREINIT:
     SV * rv = &PL_sv_no;
@@ -1599,11 +1629,11 @@ _parse_mmap_file(SV * self, SV * file, SV * error_msg_ref)
 SV *
 _check_scalar(SV *, SV * the_scalar)
  CODE:
- fprintf(stderr, "SV * at addr %p\n", the_scalar);
+ fprintf(stderr, "SV * at addr %"UVxf"\n", PTR2UV(the_scalar));
  sv_dump(the_scalar);
  if (SvROK(the_scalar)) {
     printf("\ndereferenced:\n");
-    fprintf(stderr, "SV * at addr %p\n", SvRV(the_scalar));
+    fprintf(stderr, "SV * at addr %"UVxf"\n", PTR2UV(SvRV(the_scalar)));
     sv_dump(SvRV(the_scalar));
  }
  RETVAL = &PL_sv_yes;

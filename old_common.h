@@ -87,5 +87,7 @@ uint32_t common_utf8_unicode_to_bytes(uint32_t code_point, uint8_t *out_buf);
 
 #define UPDATE_CUR_LEVEL(ctx, cur_level) (cur_level > ctx->deepest_level ? (ctx->deepest_level = cur_level) : cur_level )
 
+#define PSTRL(val) ( (UV)val )
+#define STRLuf UVuf
 
 #endif /* OLD_COMMON_H */

@@ -235,7 +235,7 @@ get_new_bool_obj(int bool_val) {
 
 static SV *
 vjson_parse_error(json_context * ctx, const char * file, unsigned int line_num, const char * fmt,
-    va_list ap) {
+    va_list *ap_ptr) {
     SV * error = Nullsv;
     bool junk = 0;
     HV * error_data;
@@ -252,9 +252,9 @@ vjson_parse_error(json_context * ctx, const char * file, unsigned int line_num, 
     }
     
     sv_catpvn(error, " - ", 3);
-    sv_vcatpvfn(error, fmt, strlen(fmt), &ap, (SV **)0, 0, &junk);
-    sv_catpvf(error, " - at char %u (byte %u), line %u, col %u (byte col %u)", ctx->char_pos,
-        ctx->pos, ctx->line, ctx->char_col, ctx->col);
+    sv_vcatpvfn(error, fmt, strlen(fmt), ap_ptr, (SV **)0, 0, &junk);
+    sv_catpvf(error, " - at char %u (byte %"CTX_FMT_pos"), line %u, col %u (byte col %u)",
+        ctx->char_pos, CTX_CNVRT_pos(ctx->pos), ctx->line, ctx->char_col, ctx->col);
 
     ctx->error_pos = ctx->pos;
     ctx->error_line = ctx->line;
@@ -265,11 +265,11 @@ vjson_parse_error(json_context * ctx, const char * file, unsigned int line_num, 
     ctx->error_data = newRV_noinc((SV *)error_data);
 
     hv_store(error_data, "version", 7, newSVpvf("%s", MOD_VERSION), 0);
-    hv_store(error_data, "char", 4, newSVuv(ctx->char_pos), 0);
+    hv_store(error_data, "char", 4, newSVuv((UV)ctx->char_pos), 0);
     hv_store(error_data, "byte", 4, newSVuv(ctx->pos), 0);
-    hv_store(error_data, "line", 4, newSVuv(ctx->line), 0);
-    hv_store(error_data, "col", 3, newSVuv(ctx->char_col), 0);
-    hv_store(error_data, "byte_col", 8, newSVuv(ctx->col), 0);
+    hv_store(error_data, "line", 4, newSVuv((UV)ctx->line), 0);
+    hv_store(error_data, "col", 3, newSVuv((UV)ctx->char_col), 0);
+    hv_store(error_data, "byte_col", 8, newSVuv((UV)ctx->col), 0);
 
     ctx->error = error;
     
@@ -283,7 +283,7 @@ json_parse_error(json_context * ctx, const char * file, unsigned int line_num,
     va_list ap;
 
     va_start(ap, fmt);
-    error = vjson_parse_error(ctx, file, line_num, fmt, ap);
+    error = vjson_parse_error(ctx, file, line_num, fmt, &ap);
     va_end(ap);
 
     return error;
@@ -297,7 +297,7 @@ JSON_PARSE_ERROR(json_context * ctx, const char * fmt, ...) {
     va_list ap;
 
     va_start(ap, fmt);
-    error = vjson_parse_error(ctx, NULL, 0, fmt, ap);
+    error = vjson_parse_error(ctx, NULL, 0, fmt, &ap);
     va_end(ap);
 
     return error;
@@ -317,11 +317,11 @@ json_eat_whitespace(json_context *ctx, UV flags) {
     UV tmp_uv;
     STRLEN tmp_len;
 
-    JSON_DEBUG("json_eat_whitespace: starting pos %d", ctx->pos);
+    JSON_DEBUG("json_eat_whitespace: starting pos %"CTX_FMT_pos, CTX_CNVRT_pos(ctx->pos));
 
     while (ctx->pos < ctx->len) {
         this_char = JsCurChar(ctx);
-        JSON_DEBUG("looking at %04x at pos %d", this_char, ctx->pos);
+        JSON_DEBUG("looking at %04"UVxf" at pos %"CTX_FMT_pos, this_char, CTX_CNVRT_pos(ctx->pos));
         
         switch (this_char) {
           case 0x20:   /* space */
@@ -355,7 +355,7 @@ json_eat_whitespace(json_context *ctx, UV flags) {
               break;
 
           case '#':
-                  JSON_DEBUG("in shell style comment at pos %d", ctx->pos);
+              JSON_DEBUG("in shell style comment at pos %"CTX_FMT_pos, CTX_CNVRT_pos(ctx->pos));
                   while (ctx->pos < ctx->len) {
                       JsNextCharWithArg(ctx, tmp_uv, tmp_len);
                       this_char = JsCurChar(ctx);
@@ -369,9 +369,10 @@ json_eat_whitespace(json_context *ctx, UV flags) {
           case '/':
               JsNextCharWithArg(ctx, tmp_uv, tmp_len);
               this_char = JsCurChar(ctx);
-              JSON_DEBUG("looking at %04x at pos %d", this_char, ctx->pos);
+              JSON_DEBUG("looking at %04"UVxf" at pos %"CTX_FMT_pos, this_char,
+                  CTX_CNVRT_pos(ctx->pos));
               if (this_char == '/') {
-                  JSON_DEBUG("in C++ style comment at pos %d", ctx->pos);
+                  JSON_DEBUG("in C++ style comment at pos %"CTX_FMT_pos, CTX_CNVRT_pos(ctx->pos));
                   while (ctx->pos < ctx->len) {
                       JsNextCharWithArg(ctx, tmp_uv, tmp_len);
                       this_char = JsCurChar(ctx);
@@ -384,7 +385,8 @@ json_eat_whitespace(json_context *ctx, UV flags) {
               else if (this_char == '*') {
                   JsNextCharWithArg(ctx, tmp_uv, tmp_len);
                   this_char = JsCurChar(ctx);
-                  JSON_DEBUG("in comment at pos %d, looking at %04x", ctx->pos, this_char);
+                  JSON_DEBUG("in comment at pos %"CTX_FMT_pos", looking at %04"UVxf,
+                      CTX_CNVRT_pos(ctx->pos), this_char);
 
                   while (ctx->pos < ctx->len) {
                       if (this_char == '*') {
@@ -404,7 +406,8 @@ json_eat_whitespace(json_context *ctx, UV flags) {
               }
               else {
                   /* syntax error -- can't have a '/' by itself */
-                  JSON_DEBUG("syntax error at %d -- can't have '/' by itself", ctx->pos);
+                  JSON_DEBUG("syntax error at %"CTX_FMT_pos" -- can't have '/' by itself",
+                      CTX_PRNT_pos);
               }
               break;
 
@@ -419,7 +422,7 @@ json_eat_whitespace(json_context *ctx, UV flags) {
 
     }
 
-    JSON_DEBUG("json_eat_whitespace: ending pos %d", ctx->pos);
+    JSON_DEBUG("json_eat_whitespace: ending pos %"CTX_FMT_pos, CTX_PRNT_pos);
 }
 
 #define JsAppendBuf(str, ctx, start_pos, offset) ( str ? (sv_catpvn(str, ctx->data + start_pos, ctx->pos - start_pos - offset), str) : newSVpvn(ctx->data + start_pos, ctx->pos - start_pos - offset) )
@@ -632,21 +635,21 @@ json_parse_word(json_context *ctx, SV * tmp_str, int is_identifier) {
     while (ctx->pos < ctx->len) {
         looking_at = JsCurChar(ctx);
 
-        JSON_DEBUG("looking at %04x", looking_at);
+        JSON_DEBUG("looking at %04"UVxf, looking_at);
         
         if ( (looking_at >= '0' && looking_at <= '9')
             || (looking_at >= 'A' && looking_at <= 'Z')
             || (looking_at >= 'a' && looking_at <= 'z')
             || looking_at == '_' || looking_at == '$'
              ) {
-            JSON_DEBUG("json_parse_word(): got %04x at %d", looking_at, ctx->pos);
+            JSON_DEBUG("json_parse_word(): got %04"UVxf" at %d", looking_at, ctx->pos);
 
             this_char = JsNextCharWithArg(ctx, tmp_uv, tmp_len);
         }
         else {
             if (ctx->pos == start_pos) {
                 /* syntax error */
-                JSON_DEBUG("syntax error at byte %d, looking_at = %04x", ctx->pos, looking_at);
+                JSON_DEBUG("syntax error at byte %d, looking_at = %04"UVxf, ctx->pos, looking_at);
                 ctx->error = JSON_PARSE_ERROR(ctx, "syntax error (invalid char)");
                 return (SV *)&PL_sv_undef;
             }
@@ -811,13 +814,13 @@ json_parse_string(json_context *ctx, SV * tmp_str) {
     sv_setpvn(rv, "", 0);
     /* rv = newSVpv("", 0); */
     
-    JSON_DEBUG("HERE, json_parse_string(), looking for boundary %04x", boundary);
+    JSON_DEBUG("HERE, json_parse_string(), looking for boundary %04"UVxf, boundary);
     while (ctx->pos < ctx->len) {
-        JSON_DEBUG("pos %d, looking at %04x", ctx->pos, next_uv);
+        JSON_DEBUG("pos %d, looking at %04"UVxf, ctx->pos, next_uv);
         this_uv = JsNextCharWithArg(ctx, tmp_uv, tmp_len);
 
         if (next_uv == boundary) {
-            JSON_DEBUG("found boundary %04x", boundary);
+            JSON_DEBUG("found boundary %04"UVxf, boundary);
 
             tmp_len = SvCUR(rv);
             if (tmp_len > ctx->longest_string_bytes) {
@@ -936,7 +939,7 @@ json_parse_string(json_context *ctx, SV * tmp_str) {
             sv_catpvn(rv, (char *)unicode_digits, PTR2UV(tmp_buf) - PTR2UV(unicode_digits));
             JSON_DEBUG("before JsCurChar()");
             next_uv = JsCurChar(ctx);
-            JSON_DEBUG("after next_char(), got %04x", next_uv);
+            JSON_DEBUG("after next_char(), got %04"UVxf, next_uv);
             
         }
     }
@@ -958,7 +961,7 @@ json_parse_object(json_context *ctx, unsigned int cur_level) {
 
     looking_at = JsCurChar(ctx);
     if (looking_at != '{') {
-        JSON_DEBUG("json_parse_object: looking at %04x", looking_at);
+        JSON_DEBUG("json_parse_object: looking at %04"UVxf, looking_at);
         return (SV *)&PL_sv_undef;
     }
 
@@ -974,7 +977,7 @@ json_parse_object(json_context *ctx, unsigned int cur_level) {
     
     looking_at = JsCurChar(ctx);
 
-    JSON_DEBUG("json_parse_object: looking at %04x", looking_at);
+    JSON_DEBUG("json_parse_object: looking at %04"UVxf, looking_at);
     if (looking_at == '}') {
         JsNextCharWithArg(ctx, tmp_uv, tmp_len);
         return (SV *)newRV_noinc((SV *)hash);
@@ -994,7 +997,7 @@ json_parse_object(json_context *ctx, unsigned int cur_level) {
             key = json_parse_string(ctx, key);
         }
         else {
-            JSON_DEBUG("looking at %04x at %d", looking_at, ctx->pos);
+            JSON_DEBUG("looking at %04"UVxf" at %d", looking_at, ctx->pos);
             key = json_parse_word(ctx, key, 1);
         }
 
@@ -1004,13 +1007,13 @@ json_parse_object(json_context *ctx, unsigned int cur_level) {
             return val;
         }
 
-        JSON_DEBUG("looking at %04x at %d", looking_at, ctx->pos);
+        JSON_DEBUG("looking at %04"UVxf" at %d", looking_at, ctx->pos);
 
         json_eat_whitespace(ctx, 0);
 
         looking_at = JsCurChar(ctx);
         
-        JSON_DEBUG("looking at %04x at %d", looking_at, ctx->pos);
+        JSON_DEBUG("looking at %04"UVxf" at %d", looking_at, ctx->pos);
         if (looking_at != ':') {
             JSON_DEBUG("bad object at %d", ctx->pos);
             ctx->error = JSON_PARSE_ERROR(ctx, "bad object (expected ':')");
@@ -1161,7 +1164,7 @@ json_parse_value(json_context *ctx, int is_identifier, unsigned int cur_level) {
 
     looking_at = JsCurChar(ctx);
 
-    JSON_DEBUG("json_parse_value: looking at %04x", looking_at);
+    JSON_DEBUG("json_parse_value: looking at %04"UVxf, looking_at);
 
     switch (looking_at) {
     case '{':
@@ -1180,7 +1183,7 @@ json_parse_value(json_context *ctx, int is_identifier, unsigned int cur_level) {
 
     case '"':
     case '\'':
-        JSON_DEBUG("before json_parse_string(), found %04x", looking_at);
+        JSON_DEBUG("before json_parse_string(), found %04"UVxf, looking_at);
         rv = json_parse_string(ctx, 0);
         JSON_DEBUG("after json_parse_string()");
         return rv;
@@ -1288,19 +1291,19 @@ from_json(SV * self, char * data_str, STRLEN data_str_len, SV ** error_msg, int 
         data = SvRV(stats_data_ref);
 
         /* FIXME: should destroy these if the store fails */
-        hv_store((HV *)data, "strings", 7, newSVuv(ctx.string_count), 0);
-        hv_store((HV *)data, "max_string_bytes", 16, newSVuv(ctx.longest_string_bytes), 0);
-        hv_store((HV *)data, "max_string_chars", 16, newSVuv(ctx.longest_string_chars), 0);
-        hv_store((HV *)data, "numbers", 7, newSVuv(ctx.number_count), 0);
-        hv_store((HV *)data, "bools", 5, newSVuv(ctx.bool_count), 0);
-        hv_store((HV *)data, "nulls", 5, newSVuv(ctx.null_count), 0);
-        hv_store((HV *)data, "hashes", 6, newSVuv(ctx.hash_count), 0);
-        hv_store((HV *)data, "arrays", 6, newSVuv(ctx.array_count), 0);
-        hv_store((HV *)data, "max_depth", 9, newSVuv(ctx.deepest_level), 0);
+        hv_store((HV *)data, "strings", 7, newSVuv((UV)ctx.string_count), 0);
+        hv_store((HV *)data, "max_string_bytes", 16, newSVuv((UV)ctx.longest_string_bytes), 0);
+        hv_store((HV *)data, "max_string_chars", 16, newSVuv((UV)ctx.longest_string_chars), 0);
+        hv_store((HV *)data, "numbers", 7, newSVuv((UV)ctx.number_count), 0);
+        hv_store((HV *)data, "bools", 5, newSVuv((UV)ctx.bool_count), 0);
+        hv_store((HV *)data, "nulls", 5, newSVuv((UV)ctx.null_count), 0);
+        hv_store((HV *)data, "hashes", 6, newSVuv((UV)ctx.hash_count), 0);
+        hv_store((HV *)data, "arrays", 6, newSVuv((UV)ctx.array_count), 0);
+        hv_store((HV *)data, "max_depth", 9, newSVuv((UV)ctx.deepest_level), 0);
 
-        hv_store((HV *)data, "lines", 5, newSVuv(ctx.line), 0);
+        hv_store((HV *)data, "lines", 5, newSVuv((UV)ctx.line), 0);
         hv_store((HV *)data, "bytes", 5, newSVuv(ctx.pos), 0);
-        hv_store((HV *)data, "chars", 5, newSVuv(ctx.char_pos), 0);
+        hv_store((HV *)data, "chars", 5, newSVuv((UV)ctx.char_pos), 0);
     }
 
     return (SV *)val;   
