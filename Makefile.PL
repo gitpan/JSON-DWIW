@@ -22,8 +22,8 @@ if ($^O =~ /MSWin/) {
 my @utf_files = qw/utf8 utf16 utf32/;
 my @utf_headers = map { "$_.h" } @utf_files;
 
-my $obj_str = join(' ', map { "$_\$(OBJ_EXT)" } @utf_files, 'evt', 'jsonevt', 'old_parse',
-                   'old_common');
+my $obj_str = join(' ', map { "$_\$(OBJ_EXT)" } @utf_files, 'evt', 'jsonevt', 'json_writer',
+                   'old_parse', 'old_common');
 
 sub MY::postamble {
     my ($self) = @_;
@@ -74,6 +74,13 @@ sub MY::postamble {
     $stuff .= "\t$cc " . File::Spec->catfile($src_dir, 'jsonevt.c') . "\n";
     $stuff .= "\n";
     
+    $stuff .= "json_writer\$(OBJ_EXT): ";
+    $stuff .= join(' ', map { File::Spec->catfile($src_dir, $_) }
+                   ('jsonevt.h', 'jsonevt_private.h', @utf_headers, 'uni.h', 'json_writer.c'));
+    $stuff .= "\n";
+    $stuff .= "\t$cc " . File::Spec->catfile($src_dir, 'json_writer.c') . "\n";
+    $stuff .= "\n";
+
     foreach my $file (@utf_files) {
         $stuff .= "$file\$(OBJ_EXT): ";
         $stuff .= join(' ', map { File::Spec->catfile($src_dir, $_) }

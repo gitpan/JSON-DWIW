@@ -18,7 +18,7 @@
 
 */
 
-/* $Header: /repository/projects/libjsonevt/jsonevt.c,v 1.47 2008/11/22 08:26:11 don Exp $ */
+/* $Header: /repository/projects/libjsonevt/jsonevt.c,v 1.49 2009/02/19 17:22:19 don Exp $ */
 
 /*
 #if defined(__WIN32) || defined(WIN32) || defined(_WIN32)
@@ -59,7 +59,7 @@ typedef unsigned int uint;
 
 #define memzero(buf, size) memset(buf, 0, size)
 
-static char * vset_error(json_context * ctx, char * file, uint line, char * fmt, va_list ap);
+static char * vset_error(json_context * ctx, char * file, uint line, char * fmt, va_list *ap);
 
 #ifdef JSONEVT_HAVE_VARIADIC_MACROS
 #define SET_ERROR(ctx,fmt,...) set_error(ctx, __FILE__, __LINE__, fmt, ## __VA_ARGS__)
@@ -70,7 +70,7 @@ SET_ERROR(json_context * ctx, char * fmt, ...) {
     char * error;
 
     va_start(ap, fmt);
-    error = vset_error(ctx, "", 0, fmt, ap);
+    error = vset_error(ctx, "", 0, fmt, &ap);
     va_end(ap);
 
     return error;
@@ -209,7 +209,7 @@ js_vasprintf(char **ret, const char *fmt, va_list *ap_ptr) {
 #endif
 }
 
-static int
+int
 js_asprintf(char ** ret, const char * fmt, ...) {
     va_list ap;
     int rv = 0;
@@ -224,7 +224,7 @@ js_asprintf(char ** ret, const char * fmt, ...) {
 }
 
 static char *
-vset_error(json_context * ctx, char * file, uint line, char * fmt, va_list ap) {
+vset_error(json_context * ctx, char * file, uint line, char * fmt, va_list *ap) {
     char * error = NULL;
     char * loc = NULL;
     char * msg = NULL;
@@ -254,7 +254,7 @@ vset_error(json_context * ctx, char * file, uint line, char * fmt, va_list ap) {
 #endif
 #endif
 
-    msg_len = js_vasprintf(&msg, fmt, &ap);
+    msg_len = js_vasprintf(&msg, fmt, ap);
 
     error = (char *)malloc(loc_len + msg_len + 1);
 	MEM_CPY(error, loc, loc_len);
@@ -280,7 +280,7 @@ set_error(json_context * ctx, char * file, uint line, char * fmt, ...) {
     char * error;
 
     va_start(ap, fmt);
-    error = vset_error(ctx, file, line, fmt, ap);
+    error = vset_error(ctx, file, line, fmt, &ap);
     va_end(ap);
 
     return error;

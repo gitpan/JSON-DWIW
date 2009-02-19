@@ -18,7 +18,7 @@
 
 */
 
-/* $Header: /repository/projects/libjsonevt/jsonevt_private.h,v 1.30 2008/08/13 04:02:26 don Exp $ */
+/* $Header: /repository/projects/libjsonevt/jsonevt_private.h,v 1.31 2008/11/27 11:51:13 don Exp $ */
 
 #ifndef JSONEVT_PRIVATE_H
 #define JSONEVT_PRIVATE_H
@@ -202,6 +202,8 @@ static void PDB(...) { }
 
 #define STATIC_BUF_SIZE 32
 
+int js_asprintf(char ** ret, const char * fmt, ...);
+
 #define ZERO_MEM(buf, buf_size) JSON_DEBUG("ZERO_MEM: buf=%p, size=%u", buf, buf_size); \
     memzero(buf, buf_size)
 #define MEM_CPY(dst_buf, src_buf, size) JSON_DEBUG("MEM_CPY: dst=%p, src=%p, size=%u", \
@@ -309,73 +311,6 @@ static void PDB(...) { }
 
 #define DO_COMMENT_CALLBACK_WITH_RET(ctx, data, data_len, flags) \
     DO_CB_WITH_RET(ctx, "comment", DO_COMMENT_CALLBACK(ctx, data, data_len, flags))
-
- /* Portions of the code below were taken from the Perl source */
-
-typedef unsigned char U8;
-
-/* utf8 macros from Perl source */
-#define NATIVE_TO_ASCII(ch)      (ch)
-#define ASCII_TO_NATIVE(ch)      (ch)
-#define NATIVE_TO_UTF(ch)        (ch)
-#define UTF_TO_NATIVE(ch)        (ch)
-#define UNI_IS_INVARIANT(c)		(((uint)c) <  0x80)
-#define UTF8_IS_INVARIANT(c)		UNI_IS_INVARIANT(NATIVE_TO_UTF(c))
-#define NATIVE_IS_INVARIANT(c)		UNI_IS_INVARIANT(NATIVE_TO_ASCII(c))
-#define UTF8_IS_START(c)		(((U8)c) >= 0xc0 && (((U8)c) <= 0xfd))
-#define UTF8_IS_CONTINUATION(c)		(((U8)c) >= 0x80 && (((U8)c) <= 0xbf))
-#define UTF8_IS_CONTINUED(c) 		(((U8)c) &  0x80)
-#define UTF8_IS_DOWNGRADEABLE_START(c)	(((U8)c & 0xfc) == 0xc0)
-
-#define UTF_START_MARK(len) ((len >  7) ? 0xFF : (0xFE << (7-len)))
-#define UTF_START_MASK(len) ((len >= 7) ? 0x00 : (0x1F >> (len-2)))
-
-#define UTF_CONTINUATION_MARK		0x80
-#define UTF_ACCUMULATION_SHIFT		6
-#define UTF_CONTINUATION_MASK		((U8)0x3f)
-#define UTF8_ACCUMULATE(old, new)	(((old) << UTF_ACCUMULATION_SHIFT) | (((U8)new) & UTF_CONTINUATION_MASK))
-
-#define UTF8_EIGHT_BIT_HI(c)	((((U8)(c))>>UTF_ACCUMULATION_SHIFT)|UTF_START_MARK(2))
-#define UTF8_EIGHT_BIT_LO(c)	(((((U8)(c)))&UTF_CONTINUATION_MASK)|UTF_CONTINUATION_MARK)
-
-#define UNISKIP(uv) ( (uv) < 0x80           ? 1 : \
-		      (uv) < 0x800          ? 2 : \
-		      (uv) < 0x10000        ? 3 : \
-		      (uv) < 0x200000       ? 4 : \
-		      (uv) < 0x4000000      ? 5 : \
-		      (uv) < 0x80000000     ? 6 : 7 )
-
-#define UTF8_ALLOW_EMPTY		0x0001
-#define UTF8_ALLOW_CONTINUATION		0x0002
-#define UTF8_ALLOW_NON_CONTINUATION	0x0004
-#define UTF8_ALLOW_FE_FF		0x0008
-#define UTF8_ALLOW_SHORT		0x0010
-#define UTF8_ALLOW_SURROGATE		0x0020
-#define UTF8_ALLOW_FFFF			0x0040 /* Allows also FFFE. */
-#define UTF8_ALLOW_LONG			0x0080
-#define UTF8_ALLOW_ANYUV		(UTF8_ALLOW_EMPTY|UTF8_ALLOW_FE_FF|\
-					 UTF8_ALLOW_SURROGATE|UTF8_ALLOW_FFFF)
-#define UTF8_ALLOW_ANY			0x00FF
-#define UTF8_CHECK_ONLY			0x0200
-
-#define UNICODE_SURROGATE_FIRST		0xD800
-#define UNICODE_SURROGATE_LAST		0xDFFF
-#define UNICODE_REPLACEMENT		0xFFFD
-#define UNICODE_BYTE_ORDER_MARK		0xFEFF
-#define UNICODE_ILLEGAL			0xFFFF
-
-#define UNICODE_ALLOW_SURROGATE 0x0001	/* Allow UTF-16 surrogates (EVIL) */
-#define UNICODE_ALLOW_FDD0	0x0002	/* Allow the U+FDD0...U+FDEF */
-#define UNICODE_ALLOW_FFFF	0x0004	/* Allow 0xFFF[EF], 0x1FFF[EF], ... */
-#define UNICODE_ALLOW_SUPER	0x0008	/* Allow past 10xFFFF */
-#define UNICODE_ALLOW_ANY	0x000F
-
-
-#define UNICODE_IS_SURROGATE(c)		((c) >= UNICODE_SURROGATE_FIRST && \
-					 (c) <= UNICODE_SURROGATE_LAST)
-#define UNICODE_IS_REPLACEMENT(c)	((c) == UNICODE_REPLACEMENT)
-#define UNICODE_IS_BYTE_ORDER_MARK(c)	((c) == UNICODE_BYTE_ORDER_MARK)
-#define UNICODE_IS_ILLEGAL(c)		((c) == UNICODE_ILLEGAL)
 
 
 JSON_DO_CPLUSPLUS_WRAP_END

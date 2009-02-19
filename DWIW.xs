@@ -55,6 +55,7 @@ vjson_encode_error(self_context * ctx, const char * file, int line_num, const ch
     SV * error = newSVpv("", 0);
     bool junk = 0;
     HV * error_data = Nullhv;
+    SV **s;
 
     sv_setpvf(error, "JSON::DWIW v%s - ", MOD_VERSION);
 
@@ -63,7 +64,7 @@ vjson_encode_error(self_context * ctx, const char * file, int line_num, const ch
     error_data = newHV();
     ctx->error_data = newRV_noinc((SV *)error_data);
 
-    hv_store(error_data, "version", 7, newSVpvf("%s", MOD_VERSION), 0);
+    s = hv_store(error_data, "version", 7, newSVpvf("%s", MOD_VERSION), 0);
 
     return error;
 }
@@ -403,10 +404,10 @@ escape_json_str(self_context * self, SV * sv_str) {
               
           default:
               if (this_uv < 0x1f) {
-                  sv_catpvf(rv, "\\u%04x", this_uv);
+                  sv_catpvf(rv, "\\u%04"UVxf, this_uv);
               }
               else if (escape_unicode && ! UTF8_IS_INVARIANT(this_uv)) {
-                  sv_catpvf(rv, "\\u%04x", this_uv);
+                  sv_catpvf(rv, "\\u%04"UVxf, this_uv);
               }
               else if (check_unicode && !pass_bad_char) {
                   len32 = common_utf8_unicode_to_bytes((uint32_t)this_uv, (uint8_t *)unicode_bytes);
@@ -1087,6 +1088,7 @@ to_json(self_context * self, SV * data_ref, int indent_level, unsigned int cur_l
 static int
 set_encode_stats(self_context * ctx, SV * stats_data_ref) {
     SV * data = Nullsv;
+    SV ** s;
 
     if (SvOK(stats_data_ref) && SvROK(stats_data_ref)) {
         data = SvRV(stats_data_ref);
@@ -1105,9 +1107,9 @@ set_encode_stats(self_context * ctx, SV * stats_data_ref) {
         hv_store((HV *)data, "numbers", 7, newSVuv(ctx->number_count), 0);
         */
 
-        hv_store((HV *)data, "hashes", 6, newSVuv(ctx->hash_count), 0);
-        hv_store((HV *)data, "arrays", 6, newSVuv(ctx->array_count), 0);
-        hv_store((HV *)data, "max_depth", 9, newSVuv(ctx->deepest_level), 0);
+        s = hv_store((HV *)data, "hashes", 6, newSVuv(ctx->hash_count), 0);
+        s = hv_store((HV *)data, "arrays", 6, newSVuv(ctx->array_count), 0);
+        s = hv_store((HV *)data, "max_depth", 9, newSVuv(ctx->deepest_level), 0);
 
     }
 

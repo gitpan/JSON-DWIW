@@ -18,7 +18,7 @@
 
 */
 
-/* $Header: /repository/projects/libjsonevt/jsonevt.h,v 1.22 2008/09/27 23:28:44 don Exp $ */
+/* $Header: /repository/projects/libjsonevt/jsonevt.h,v 1.24 2008/11/27 11:51:13 don Exp $ */
 
 #ifndef JSONEVT_H
 #define JSONEVT_H
@@ -144,7 +144,6 @@ uint jsonevt_get_char_pos(json_ctx * ctx);
 uint jsonevt_get_byte_pos(json_ctx * ctx);
 */
 
-
 #define JSON_EVT_PARSE_NUMBER_HAVE_SIGN     1
 #define JSON_EVT_PARSE_NUMBER_HAVE_DECIMAL  (1 << 1)
 #define JSON_EVT_PARSE_NUMBER_HAVE_EXPONENT (1 << 2)
@@ -162,12 +161,47 @@ uint jsonevt_get_byte_pos(json_ctx * ctx);
 #define JSON_EVT_OPTION_BAD_CHAR_POLICY_ERROR   0
 #define JSON_EVT_OPTION_BAD_CHAR_POLICY_CONVERT 1
 #define JSON_EVT_OPTION_BAD_CHAR_POLICY_PASS    (1 << 1)
+#define JSON_EVT_OPTION_ASCII                   (1 << 2)
 
 /* #define JSON_EVT_OPTION_CONVERT_BOOL             1 */
 
 #define JSON_EVT_MAJOR_VERSION 0
 #define JSON_EVT_MINOR_VERSION 0
 #define JSON_EVT_PATCH_LEVEL 8
+
+/* writer */
+
+typedef struct jsonevt_array_struct jsonevt_array;
+typedef struct jsonevt_hash_struct jsonevt_hash;
+typedef struct jsonevt_str_struct jsonevt_str;
+typedef struct jsonevt_writer_data_struct jsonevt_writer_data;
+
+jsonevt_array * jsonevt_new_array();
+void jsonevt_free_array(jsonevt_array * array);
+void jsonevt_array_start(jsonevt_array * array);
+void jsonevt_array_end(jsonevt_array * array);
+int jsonevt_array_append_element(jsonevt_array * array, char * buf, size_t length);
+int jsonevt_array_append_string_element(jsonevt_array * array, char * buf);
+int jsonevt_array_append_raw_element(jsonevt_array * array, char * buf, size_t length);
+char * jsonevt_array_get_string(jsonevt_array * array, size_t * length_ptr);
+void jsonevt_array_disown_buffer(jsonevt_array *array);
+
+jsonevt_hash * jsonevt_new_hash();
+void jsonevt_free_hash(jsonevt_hash * hash);
+void jsonevt_hash_start(jsonevt_hash * hash);
+int jsonevt_hash_append_entry(jsonevt_hash * hash, char * key, size_t key_size,
+    char * val, size_t val_size);
+int jsonevt_hash_append_entry(jsonevt_hash * hash, char * key, size_t key_size,
+    char * val, size_t val_size);
+int jsonevt_hash_append_string_entry(jsonevt_hash * hash, char * key, char * val);
+int jsonevt_hash_append_raw_entry(jsonevt_hash * hash, char * key, size_t key_size,
+    char * val, size_t val_size);
+char * jsonevt_hash_get_string(jsonevt_hash * hash, size_t * length_ptr);
+void jsonevt_hash_disown_buffer(jsonevt_hash *hash);
+
+char * jsonevt_escape_c_buffer(char *in_buf, size_t length_in, size_t *length_out,
+    unsigned long options);
+
 
 JSON_DO_CPLUSPLUS_WRAP_END
 
