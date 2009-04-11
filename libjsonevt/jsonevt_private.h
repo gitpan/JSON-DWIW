@@ -4,7 +4,7 @@
 
 /*
 
- Copyright (c) 2007-2008 Don Owens <don@regexguy.com>.  All rights reserved.
+ Copyright (c) 2007-2009 Don Owens <don@regexguy.com>.  All rights reserved.
 
  This is free software; you can redistribute it and/or modify it under
  the Perl Artistic license.  You should have received a copy of the
@@ -18,13 +18,14 @@
 
 */
 
-/* $Header: /repository/projects/libjsonevt/jsonevt_private.h,v 1.31 2008/11/27 11:51:13 don Exp $ */
+/* $Header: /repository/projects/libjsonevt/jsonevt_private.h,v 1.33 2009/02/23 17:46:55 don Exp $ */
 
 #ifndef JSONEVT_PRIVATE_H
 #define JSONEVT_PRIVATE_H
 
 #include "jsonevt.h"
 #include "utf8.h"
+#include "print.h"
 
 JSON_DO_CPLUSPLUS_WRAP_BEGIN
 

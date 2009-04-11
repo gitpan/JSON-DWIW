@@ -23,7 +23,7 @@ my @utf_files = qw/utf8 utf16 utf32/;
 my @utf_headers = map { "$_.h" } @utf_files;
 
 my $obj_str = join(' ', map { "$_\$(OBJ_EXT)" } @utf_files, 'evt', 'jsonevt', 'json_writer',
-                   'old_parse', 'old_common');
+                   'print', 'old_parse', 'old_common');
 
 sub MY::postamble {
     my ($self) = @_;
@@ -50,36 +50,35 @@ sub MY::postamble {
     $stuff .= "old_parse\$(OBJ_EXT): old_parse.c old_parse.h old_common.h\n\n";
     $stuff .= "old_common\$(OBJ_EXT): old_common.c old_common.h\n\n";
     $stuff .= "DWIW\$(OBJ_EXT): DWIW.h old_parse.h old_common.h $config_h\n\n";
-    # $stuff .= "DWIW.c: DWIW.h old_parse.h old_common.h $config_h\n\n";
 
     my $make_conf = File::Spec->catfile($src_dir, 'make_config');
-    # my $exec_make_conf = File::Spec->rel2abs('make_config');
     my $exec_make_conf = File::Spec->rel2abs($make_conf);
-    # $exec_make_conf .= " $config_h " . $cc;
     $exec_make_conf .= " $config_h ./check_config " . $cc_main . ' ' . $exec_output_name->('check_config');
-
-#     print "\n\nmake_conf=$make_conf\n\n";
-#     print "cc_main=$cc_main\n\n";
     
+    my $add_evt_obj = sub {
+        my ($name, @extra_headers) = @_;
+        my $rv = '';
+        
+        $rv .= "$name\$(OBJ_EXT): ";
+        $rv .= join(' ', map { File::Spec->catfile($src_dir, $_) }
+                    ('jsonevt.h', 'jsonevt_private.h', @utf_headers, 'uni.h',
+                     "$name.c", @extra_headers));
+        $rv .= "\n";
+        $rv .= "\t$cc " . File::Spec->catfile($src_dir, "$name.c") . "\n";
+        $rv .= "\n";
+        
+        return $rv;
+    };
+
     $stuff .= "$obj_str: $config_h\n\n";
 
     $stuff .= "$config_h: $make_conf\n\t$exec_make_conf\n\n";
     $stuff .= "$make_conf: $make_conf.c\n\t$cc_main " . $exec_output_name->($make_conf)
         . " $make_conf.c\n\n";
-    
-    $stuff .= "jsonevt\$(OBJ_EXT): ";
-    $stuff .= join(' ', map { File::Spec->catfile($src_dir, $_) }
-                   ('jsonevt.h', 'jsonevt_private.h', @utf_headers, 'uni.h', 'jsonevt.c'));
-    $stuff .= "\n";
-    $stuff .= "\t$cc " . File::Spec->catfile($src_dir, 'jsonevt.c') . "\n";
-    $stuff .= "\n";
-    
-    $stuff .= "json_writer\$(OBJ_EXT): ";
-    $stuff .= join(' ', map { File::Spec->catfile($src_dir, $_) }
-                   ('jsonevt.h', 'jsonevt_private.h', @utf_headers, 'uni.h', 'json_writer.c'));
-    $stuff .= "\n";
-    $stuff .= "\t$cc " . File::Spec->catfile($src_dir, 'json_writer.c') . "\n";
-    $stuff .= "\n";
+        
+    $stuff .= $add_evt_obj->('jsonevt');
+    $stuff .= $add_evt_obj->('json_writer');
+    $stuff .= $add_evt_obj->('print', 'print.h');
 
     foreach my $file (@utf_files) {
         $stuff .= "$file\$(OBJ_EXT): ";
@@ -87,7 +86,6 @@ sub MY::postamble {
                        ("$file.c", "$file.h", 'uni.h'));
         $stuff .= "\n";
         
-        # . File::Spec->catfile($src_dir, 'utf8.c') . "\n";
         $stuff .= "\t" . '$(CCCMD) $(CCCDLFLAGS) "-I$(PERL_INC)" $(PASTHRU_DEFINE) $(DEFINE) ';
         $stuff .= File::Spec->catfile($src_dir, "$file.c") . "\n";
         $stuff .= "\n";

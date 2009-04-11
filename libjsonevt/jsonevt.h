@@ -4,7 +4,7 @@
 
 /*
 
- Copyright (c) 2007-2008 Don Owens <don@regexguy.com>.  All rights reserved.
+ Copyright (c) 2007-2009 Don Owens <don@regexguy.com>.  All rights reserved.
 
  This is free software; you can redistribute it and/or modify it under
  the Perl Artistic license.  You should have received a copy of the
@@ -18,7 +18,7 @@
 
 */
 
-/* $Header: /repository/projects/libjsonevt/jsonevt.h,v 1.24 2008/11/27 11:51:13 don Exp $ */
+/* $Header: /repository/projects/libjsonevt/jsonevt.h,v 1.26 2009/02/24 17:35:00 don Exp $ */
 
 #ifndef JSONEVT_H
 #define JSONEVT_H
@@ -167,7 +167,7 @@ uint jsonevt_get_byte_pos(json_ctx * ctx);
 
 #define JSON_EVT_MAJOR_VERSION 0
 #define JSON_EVT_MINOR_VERSION 0
-#define JSON_EVT_PATCH_LEVEL 8
+#define JSON_EVT_PATCH_LEVEL 9
 
 /* writer */
 
@@ -175,33 +175,43 @@ typedef struct jsonevt_array_struct jsonevt_array;
 typedef struct jsonevt_hash_struct jsonevt_hash;
 typedef struct jsonevt_str_struct jsonevt_str;
 typedef struct jsonevt_writer_data_struct jsonevt_writer_data;
+typedef struct jsonevt_float_struct jsonevt_float;
+typedef struct jsonevt_int_struct jsonevt_int;
+typedef struct jsonevt_uint_struct jsonevt_uint;
+typedef struct jsonevt_bool_struct jsonevt_bool;
+
+jsonevt_float *jsonevt_new_float(double val);
+jsonevt_int *jsonevt_new_int(long val);
+jsonevt_uint *jsonevt_new_uint(unsigned long val);
+jsonevt_bool *jsonevt_new_bool(int val);
 
 jsonevt_array * jsonevt_new_array();
 void jsonevt_free_array(jsonevt_array * array);
 void jsonevt_array_start(jsonevt_array * array);
 void jsonevt_array_end(jsonevt_array * array);
-int jsonevt_array_append_element(jsonevt_array * array, char * buf, size_t length);
-int jsonevt_array_append_string_element(jsonevt_array * array, char * buf);
+int jsonevt_array_append_buffer(jsonevt_array * array, char * buf, size_t length);
+int jsonevt_array_append_string_buffer(jsonevt_array * array, char * buf);
 int jsonevt_array_append_raw_element(jsonevt_array * array, char * buf, size_t length);
 char * jsonevt_array_get_string(jsonevt_array * array, size_t * length_ptr);
 void jsonevt_array_disown_buffer(jsonevt_array *array);
+int jsonevt_array_add_data(jsonevt_array *dest, jsonevt_writer_data *src);
 
 jsonevt_hash * jsonevt_new_hash();
 void jsonevt_free_hash(jsonevt_hash * hash);
 void jsonevt_hash_start(jsonevt_hash * hash);
-int jsonevt_hash_append_entry(jsonevt_hash * hash, char * key, size_t key_size,
+int jsonevt_hash_append_buffer(jsonevt_hash * hash, char * key, size_t key_size,
     char * val, size_t val_size);
-int jsonevt_hash_append_entry(jsonevt_hash * hash, char * key, size_t key_size,
-    char * val, size_t val_size);
-int jsonevt_hash_append_string_entry(jsonevt_hash * hash, char * key, char * val);
+int jsonevt_hash_append_string_buffer(jsonevt_hash * hash, char * key, char * val);
 int jsonevt_hash_append_raw_entry(jsonevt_hash * hash, char * key, size_t key_size,
     char * val, size_t val_size);
 char * jsonevt_hash_get_string(jsonevt_hash * hash, size_t * length_ptr);
 void jsonevt_hash_disown_buffer(jsonevt_hash *hash);
+int jsonevt_hash_add_data(jsonevt_hash *dest, jsonevt_writer_data *src, char *key, size_t key_len);
 
 char * jsonevt_escape_c_buffer(char *in_buf, size_t length_in, size_t *length_out,
     unsigned long options);
 
+char * jsonevt_get_data_string(jsonevt_writer_data *ctx, size_t *length_ptr);
 
 JSON_DO_CPLUSPLUS_WRAP_END
 

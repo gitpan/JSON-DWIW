@@ -3,7 +3,7 @@
  */
 
 /*
-Copyright (c) 2007-2008 Don Owens <don@regexguy.com>.  All rights reserved.
+Copyright (c) 2007-2009 Don Owens <don@regexguy.com>.  All rights reserved.
 
  This is free software; you can redistribute it and/or modify it under
  the Perl Artistic license.  You should have received a copy of the
@@ -17,7 +17,7 @@ Copyright (c) 2007-2008 Don Owens <don@regexguy.com>.  All rights reserved.
  PURPOSE.
 */
 
-/* $Header: /repository/owens_lib/cpan/JSON/DWIW/DWIW.h,v 1.2 2008/04/17 04:12:16 don Exp $ */
+/* $Header: /repository/owens_lib/cpan/JSON/DWIW/DWIW.h,v 1.3 2009/04/11 02:18:37 don Exp $ */
 
 #ifndef DWIW_H
 #define DWIW_H

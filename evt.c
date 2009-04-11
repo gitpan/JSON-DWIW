@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2007-2008 Don Owens <don@regexguy.com>.  All rights reserved.
+Copyright (c) 2007-2009 Don Owens <don@regexguy.com>.  All rights reserved.
 
 This is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.  See perlartistic.
@@ -93,6 +93,9 @@ extern "C" {
 #define MOD_NAME "JSON::DWIW"
 
 #define UNLESS(stuff) if (! (stuff))
+
+/* get rid of "value computed is not used" warnings */
+#define IGNORE_RV(x) (void)(x)
 
 typedef struct {
     SV * data;
@@ -393,7 +396,7 @@ insert_entry(parse_callback_ctx * ctx, SV * val) {
         s = cur_entry->data;
         cur_entry = (parse_cb_stack_entry *)(ctx->stack + level - 1);
         
-        hv_store_ent((HV *)SvRV(cur_entry->data), s, val, 0);
+        IGNORE_RV(hv_store_ent((HV *)SvRV(cur_entry->data), s, val, 0));
         POP_STACK(ctx);
     }
     
@@ -537,7 +540,7 @@ number_callback(void * cb_data, char * data, uint data_len, uint flags, uint lev
         if (flags & JSON_EVT_PARSE_NUMBER_HAVE_SIGN) {
             if (data_len - 1 >= IV_DIG) {
                 if (data_len - 1 == IV_DIG) {
-                    uv_str = form("%"IVdf"", IV_MIN);
+                    uv_str = form("%"IVdf"", (IV)IV_MIN);
                     if (strncmp(data, uv_str, data_len) > 0) {
                         try_big_num = 1;
                     }
@@ -550,7 +553,7 @@ number_callback(void * cb_data, char * data, uint data_len, uint flags, uint lev
         else {
             if (data_len >= UV_DIG) {
                 if (data_len == UV_DIG) {
-                    uv_str = form("%"UVuf"", UV_MAX);
+                    uv_str = form("%"UVuf"", (UV)UV_MAX);
                     if (strncmp(data, uv_str, data_len) > 0) {
                         try_big_num = 1;
                     }
@@ -900,12 +903,12 @@ handle_parse_result(int result, jsonevt_ctx * ctx, perl_wrapper_ctx * wctx) {
 
         error_data_ref = newRV_noinc((SV *)error_hash);
         
-        hv_store(error_hash, "version", 7, newSVpvf("%s", XS_VERSION), 0);
-        hv_store(error_hash, "char", 4, newSVuv(jsonevt_get_error_char_pos(ctx)), 0);
-        hv_store(error_hash, "byte", 4, newSVuv(jsonevt_get_error_byte_pos(ctx)), 0);
-        hv_store(error_hash, "line", 4, newSVuv(jsonevt_get_error_line(ctx)), 0);
-        hv_store(error_hash, "col", 3, newSVuv(jsonevt_get_error_char_col(ctx)), 0);
-        hv_store(error_hash, "byte_col", 8, newSVuv(jsonevt_get_error_byte_col(ctx)), 0);
+        IGNORE_RV(hv_store(error_hash, "version", 7, newSVpvf("%s", XS_VERSION), 0));
+        IGNORE_RV(hv_store(error_hash, "char", 4, newSVuv(jsonevt_get_error_char_pos(ctx)), 0));
+        IGNORE_RV(hv_store(error_hash, "byte", 4, newSVuv(jsonevt_get_error_byte_pos(ctx)), 0));
+        IGNORE_RV(hv_store(error_hash, "line", 4, newSVuv(jsonevt_get_error_line(ctx)), 0));
+        IGNORE_RV(hv_store(error_hash, "col", 3, newSVuv(jsonevt_get_error_char_col(ctx)), 0));
+        IGNORE_RV(hv_store(error_hash, "byte_col", 8, newSVuv(jsonevt_get_error_byte_col(ctx)), 0));
 
         tmp_sv = get_sv("JSON::DWIW::LastErrorData", 1);
         sv_setsv(tmp_sv, error_data_ref);
@@ -928,19 +931,24 @@ handle_parse_result(int result, jsonevt_ctx * ctx, perl_wrapper_ctx * wctx) {
         rv = wctx->cbd.stack[0].data;
         stats = newHV();
 
-        hv_store(stats, "strings", 7, newSVuv(jsonevt_get_stats_string_count(ctx)), 0);
-        hv_store(stats, "max_string_bytes", 16, newSVuv(jsonevt_get_stats_longest_string_bytes(ctx)), 0);
-        hv_store(stats, "max_string_chars", 16, newSVuv(jsonevt_get_stats_longest_string_chars(ctx)), 0);
-        hv_store(stats, "numbers", 7, newSVuv(jsonevt_get_stats_number_count(ctx)), 0);
-        hv_store(stats, "bools", 5, newSVuv(jsonevt_get_stats_bool_count(ctx)), 0);
-        hv_store(stats, "nulls", 5, newSVuv(jsonevt_get_stats_null_count(ctx)), 0);
-        hv_store(stats, "hashes", 6, newSVuv(jsonevt_get_stats_hash_count(ctx)), 0);
-        hv_store(stats, "arrays", 6, newSVuv(jsonevt_get_stats_array_count(ctx)), 0);
-        hv_store(stats, "max_depth", 9, newSVuv(jsonevt_get_stats_deepest_level(ctx)), 0);
+        IGNORE_RV(hv_store(stats, "strings", 7,
+                newSVuv(jsonevt_get_stats_string_count(ctx)), 0));
+        IGNORE_RV(hv_store(stats, "max_string_bytes", 16,
+                newSVuv(jsonevt_get_stats_longest_string_bytes(ctx)), 0));
+        IGNORE_RV(hv_store(stats, "max_string_chars", 16,
+                newSVuv(jsonevt_get_stats_longest_string_chars(ctx)), 0));
+        IGNORE_RV(hv_store(stats, "numbers", 7,
+                newSVuv(jsonevt_get_stats_number_count(ctx)), 0));
+        IGNORE_RV(hv_store(stats, "bools", 5, newSVuv(jsonevt_get_stats_bool_count(ctx)), 0));
+        IGNORE_RV(hv_store(stats, "nulls", 5, newSVuv(jsonevt_get_stats_null_count(ctx)), 0));
+        IGNORE_RV(hv_store(stats, "hashes", 6, newSVuv(jsonevt_get_stats_hash_count(ctx)), 0));
+        IGNORE_RV(hv_store(stats, "arrays", 6, newSVuv(jsonevt_get_stats_array_count(ctx)), 0));
+        IGNORE_RV(hv_store(stats, "max_depth", 9,
+                newSVuv(jsonevt_get_stats_deepest_level(ctx)), 0));
         
-        hv_store(stats, "lines", 5, newSVuv(jsonevt_get_stats_line_count(ctx)), 0);
-        hv_store(stats, "bytes", 5, newSVuv(jsonevt_get_stats_byte_count(ctx)), 0);
-        hv_store(stats, "chars", 5, newSVuv(jsonevt_get_stats_char_count(ctx)), 0);
+        IGNORE_RV(hv_store(stats, "lines", 5, newSVuv(jsonevt_get_stats_line_count(ctx)), 0));
+        IGNORE_RV(hv_store(stats, "bytes", 5, newSVuv(jsonevt_get_stats_byte_count(ctx)), 0));
+        IGNORE_RV(hv_store(stats, "chars", 5, newSVuv(jsonevt_get_stats_char_count(ctx)), 0));
         
         tmp_sv = get_sv("JSON::DWIW::Last_Stats", 1);
         stats_ref = newRV_noinc((SV *)stats);

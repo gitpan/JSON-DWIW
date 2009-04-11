@@ -3,7 +3,7 @@
  */
 
 /*
-Copyright (c) 2007-2008 Don Owens <don@regexguy.com>.  All rights reserved.
+Copyright (c) 2007-2009 Don Owens <don@regexguy.com>.  All rights reserved.
 
  This is free software; you can redistribute it and/or modify it under
  the Perl Artistic license.  You should have received a copy of the
@@ -18,6 +18,8 @@ Copyright (c) 2007-2008 Don Owens <don@regexguy.com>.  All rights reserved.
 */
 
 #include "old_parse.h"
+
+#define IGNORE_RV(x) (void)(x)
 
 #define JsHaveMoreChars(ctx) ( (ctx)->pos < (ctx)->len )
 
@@ -264,12 +266,12 @@ vjson_parse_error(json_context * ctx, const char * file, unsigned int line_num, 
     error_data = newHV();
     ctx->error_data = newRV_noinc((SV *)error_data);
 
-    hv_store(error_data, "version", 7, newSVpvf("%s", MOD_VERSION), 0);
-    hv_store(error_data, "char", 4, newSVuv((UV)ctx->char_pos), 0);
-    hv_store(error_data, "byte", 4, newSVuv(ctx->pos), 0);
-    hv_store(error_data, "line", 4, newSVuv((UV)ctx->line), 0);
-    hv_store(error_data, "col", 3, newSVuv((UV)ctx->char_col), 0);
-    hv_store(error_data, "byte_col", 8, newSVuv((UV)ctx->col), 0);
+    IGNORE_RV(hv_store(error_data, "version", 7, newSVpvf("%s", MOD_VERSION), 0));
+    IGNORE_RV(hv_store(error_data, "char", 4, newSVuv((UV)ctx->char_pos), 0));
+    IGNORE_RV(hv_store(error_data, "byte", 4, newSVuv(ctx->pos), 0));
+    IGNORE_RV(hv_store(error_data, "line", 4, newSVuv((UV)ctx->line), 0));
+    IGNORE_RV(hv_store(error_data, "col", 3, newSVuv((UV)ctx->char_col), 0));
+    IGNORE_RV(hv_store(error_data, "byte_col", 8, newSVuv((UV)ctx->col), 0));
 
     ctx->error = error;
     
@@ -529,7 +531,7 @@ json_parse_number(json_context *ctx, SV * tmp_str) {
         if (flags & kParseNumberHaveSign) {
             if (size - 1 >= IV_DIG) {
                 if (size - 1 == IV_DIG) {
-                    uv_str = form("%"IVdf"", IV_MIN);
+                    uv_str = form("%"IVdf"", (IV)IV_MIN);
                     if (strncmp(ctx->data + start_pos, uv_str, size) > 0) {
                         flags |= kParseNumberTryBigNum;
                     }
@@ -543,7 +545,7 @@ json_parse_number(json_context *ctx, SV * tmp_str) {
         else {
             if (size >= UV_DIG) {
                 if (size == UV_DIG) {
-                    uv_str = form("%"UVuf"", UV_MAX);
+                    uv_str = form("%"UVuf"", (UV)UV_MAX);
                     if (strncmp(ctx->data + start_pos, uv_str, size) > 0) {
                         flags |= kParseNumberTryBigNum;
                     }
@@ -1032,7 +1034,7 @@ json_parse_object(json_context *ctx, unsigned int cur_level) {
             return val;
         }
         
-        hv_store_ent(hash, key, val, 0);
+        IGNORE_RV(hv_store_ent(hash, key, val, 0));
 
         key = tmp_str;
 
@@ -1291,19 +1293,19 @@ from_json(SV * self, char * data_str, STRLEN data_str_len, SV ** error_msg, int 
         data = SvRV(stats_data_ref);
 
         /* FIXME: should destroy these if the store fails */
-        hv_store((HV *)data, "strings", 7, newSVuv((UV)ctx.string_count), 0);
-        hv_store((HV *)data, "max_string_bytes", 16, newSVuv((UV)ctx.longest_string_bytes), 0);
-        hv_store((HV *)data, "max_string_chars", 16, newSVuv((UV)ctx.longest_string_chars), 0);
-        hv_store((HV *)data, "numbers", 7, newSVuv((UV)ctx.number_count), 0);
-        hv_store((HV *)data, "bools", 5, newSVuv((UV)ctx.bool_count), 0);
-        hv_store((HV *)data, "nulls", 5, newSVuv((UV)ctx.null_count), 0);
-        hv_store((HV *)data, "hashes", 6, newSVuv((UV)ctx.hash_count), 0);
-        hv_store((HV *)data, "arrays", 6, newSVuv((UV)ctx.array_count), 0);
-        hv_store((HV *)data, "max_depth", 9, newSVuv((UV)ctx.deepest_level), 0);
+        IGNORE_RV(hv_store((HV *)data, "strings", 7, newSVuv((UV)ctx.string_count), 0));
+        IGNORE_RV(hv_store((HV *)data, "max_string_bytes", 16, newSVuv((UV)ctx.longest_string_bytes), 0));
+        IGNORE_RV(hv_store((HV *)data, "max_string_chars", 16, newSVuv((UV)ctx.longest_string_chars), 0));
+        IGNORE_RV(hv_store((HV *)data, "numbers", 7, newSVuv((UV)ctx.number_count), 0));
+        IGNORE_RV(hv_store((HV *)data, "bools", 5, newSVuv((UV)ctx.bool_count), 0));
+        IGNORE_RV(hv_store((HV *)data, "nulls", 5, newSVuv((UV)ctx.null_count), 0));
+        IGNORE_RV(hv_store((HV *)data, "hashes", 6, newSVuv((UV)ctx.hash_count), 0));
+        IGNORE_RV(hv_store((HV *)data, "arrays", 6, newSVuv((UV)ctx.array_count), 0));
+        IGNORE_RV(hv_store((HV *)data, "max_depth", 9, newSVuv((UV)ctx.deepest_level), 0));
 
-        hv_store((HV *)data, "lines", 5, newSVuv((UV)ctx.line), 0);
-        hv_store((HV *)data, "bytes", 5, newSVuv(ctx.pos), 0);
-        hv_store((HV *)data, "chars", 5, newSVuv((UV)ctx.char_pos), 0);
+        IGNORE_RV(hv_store((HV *)data, "lines", 5, newSVuv((UV)ctx.line), 0));
+        IGNORE_RV(hv_store((HV *)data, "bytes", 5, newSVuv(ctx.pos), 0));
+        IGNORE_RV(hv_store((HV *)data, "chars", 5, newSVuv((UV)ctx.char_pos), 0));
     }
 
     return (SV *)val;   

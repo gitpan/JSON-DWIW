@@ -4,7 +4,7 @@
 
 /*
 
- Copyright (c) 2007-2008 Don Owens <don@regexguy.com>.  All rights reserved.
+ Copyright (c) 2007-2009 Don Owens <don@regexguy.com>.  All rights reserved.
 
  This is free software; you can redistribute it and/or modify it under
  the Perl Artistic license.  You should have received a copy of the
@@ -18,7 +18,7 @@
 
 */
 
-/* $Header: /repository/projects/libjsonevt/utf32.c,v 1.2 2008/04/06 09:32:27 don Exp $ */
+/* $Header: /repository/projects/libjsonevt/utf32.c,v 1.3 2009/02/23 17:46:55 don Exp $ */
 
 #include "utf32.h"
 

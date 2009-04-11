@@ -4,7 +4,7 @@
 
 /*
 
- Copyright (c) 2008 Don Owens <don@regexguy.com>.  All rights reserved.
+ Copyright (c) 2008-2009 Don Owens <don@regexguy.com>.  All rights reserved.
 
  This is free software; you can redistribute it and/or modify it under
  the Perl Artistic license.  You should have received a copy of the
@@ -18,7 +18,7 @@
 
 */
 
-/* $Header: /repository/projects/libjsonevt/json_writer.c,v 1.2 2008/11/27 11:51:13 don Exp $ */
+/* $Header: /repository/projects/libjsonevt/json_writer.c,v 1.4 2009/04/11 02:18:38 don Exp $ */
 
 #include "jsonevt_private.h"
 
@@ -30,10 +30,32 @@
 
 
 
-typedef enum { unknown, str, array, hash } jsonevt_data_type;
+typedef enum {
+    unknown, str, array, hash, float_val, int_val, uint_val, bool_val
+} jsonevt_data_type;
 
 struct jsonevt_writer_data_struct {
     jsonevt_data_type type;
+};
+
+struct jsonevt_float_struct {
+    jsonevt_data_type type;
+    double val;
+};
+
+struct jsonevt_int_struct {
+    jsonevt_data_type type;
+    long val;
+};
+
+struct jsonevt_uint_struct {
+    jsonevt_data_type type;
+    unsigned long val;
+};
+
+struct jsonevt_bool_struct {
+    jsonevt_data_type type;
+    int val;
 };
 
 struct jsonevt_str_struct {
@@ -101,11 +123,57 @@ json_ensure_buf_size(jsonevt_str * ctx, size_t size) {
     return ctx->str;
 }
 
+jsonevt_float *
+jsonevt_new_float(double val) {
+    jsonevt_float *ctx = _json_malloc(sizeof(jsonevt_float));
+
+    memset(ctx, 0, sizeof(jsonevt_float));
+    ctx->type = float_val;
+    ctx->val = val;
+
+    return ctx;
+}
+
+jsonevt_int *
+jsonevt_new_int(long val) {
+    jsonevt_int *ctx = _json_malloc(sizeof(jsonevt_int));
+    
+    memset(ctx, 0, sizeof(jsonevt_int));
+    ctx->type = int_val;
+    ctx->val = val;
+
+    return ctx;
+}
+
+jsonevt_uint *
+jsonevt_new_uint(unsigned long val) {
+    jsonevt_uint *ctx = _json_malloc(sizeof(jsonevt_uint));
+    
+    memset(ctx, 0, sizeof(jsonevt_uint));
+    ctx->type = uint_val;
+    ctx->val = val;
+
+    return ctx;
+}
+
+jsonevt_bool *
+jsonevt_new_bool(int val) {
+    jsonevt_bool *ctx = _json_malloc(sizeof(jsonevt_bool));
+
+    memset(ctx, 0, sizeof(jsonevt_bool));
+    ctx->type = bool_val;
+    ctx->val = val;
+
+    return ctx;
+}
+
+
 static jsonevt_str *
 json_new_str(size_t size) {
     jsonevt_str * ctx = _json_malloc(sizeof(jsonevt_str));
     
     memset(ctx, 0, sizeof(jsonevt_str));
+    ctx->type = str;
 
     if (size > 0) {
         json_ensure_buf_size(ctx, size + 1);
@@ -233,6 +301,9 @@ json_escape_c_buffer(char * str, size_t length, unsigned long options) {
 
           default:
               if (this_char < 0x1f || ( this_char >= 0x80 && (options & JSON_EVT_OPTION_ASCII) ) ) {
+                  /* FIXME: don't use js_asprintf -- instead convert
+                     the bits directly to hex nibbles
+                  */
                   js_asprintf(&tmp_buf, "\\u%04x", this_char);
                   json_append_bytes(ctx, tmp_buf, strlen(tmp_buf));
                   free(tmp_buf); tmp_buf = NULL;
@@ -244,6 +315,7 @@ json_escape_c_buffer(char * str, size_t length, unsigned long options) {
               break;
         }
     }
+
 
     /* closing quotes */
     json_append_one_byte(ctx, '"');
@@ -269,6 +341,7 @@ jsonevt_array *
 jsonevt_new_array() {
     jsonevt_array * ctx = _json_malloc(sizeof(jsonevt_array));
     memset(ctx, 0, sizeof(jsonevt_array));
+    ctx->type = array;
 
     return ctx;
 }
@@ -335,7 +408,7 @@ jsonevt_array_append_raw_element(jsonevt_array * ctx, char * buf, size_t length)
 }
 
 int
-jsonevt_array_append_element(jsonevt_array * ctx, char * buf, size_t length) {
+jsonevt_array_append_buffer(jsonevt_array * ctx, char * buf, size_t length) {
     jsonevt_str * str_ctx = json_escape_c_buffer(buf, length, JSON_EVT_OPTION_NONE);
     int rv;
 
@@ -345,8 +418,24 @@ jsonevt_array_append_element(jsonevt_array * ctx, char * buf, size_t length) {
 }
 
 int
-jsonevt_array_append_string_element(jsonevt_array * array, char * buf) {
-    return jsonevt_array_append_element(array, buf, strlen(buf));
+jsonevt_array_append_string_buffer(jsonevt_array * array, char * buf) {
+    return jsonevt_array_append_buffer(array, buf, strlen(buf));
+}
+
+int
+jsonevt_array_add_data(jsonevt_array *dest, jsonevt_writer_data *src) {
+
+    size_t src_len = 0;
+    char *src_buf = 0;
+    int rv = 0;
+
+    src_buf = jsonevt_get_data_string(src, &src_len);
+
+    rv = jsonevt_array_append_raw_element(dest, src_buf, src_len);
+
+    /* FIXME: decide here whether to free data in src */
+
+    return rv;
 }
 
 void
@@ -356,10 +445,11 @@ jsonevt_array_disown_buffer(jsonevt_array *array) {
 
 jsonevt_hash *
 jsonevt_new_hash() {
-    jsonevt_hash * hash = (jsonevt_hash *)_json_malloc(sizeof(jsonevt_hash));
-    memset(hash, 0, sizeof(jsonevt_hash));
+    jsonevt_hash * ctx = (jsonevt_hash *)_json_malloc(sizeof(jsonevt_hash));
+    memset(ctx, 0, sizeof(jsonevt_hash));
+    ctx->type = hash;
 
-    return hash;
+    return ctx;
 }
 
 void
@@ -449,7 +539,7 @@ jsonevt_hash_append_raw_entry(jsonevt_hash * ctx, char * key, size_t key_size, c
 }
 
 int
-jsonevt_hash_append_entry(jsonevt_hash * ctx, char * key, size_t key_size, char * val,
+jsonevt_hash_append_buffer(jsonevt_hash * ctx, char * key, size_t key_size, char * val,
     size_t val_size) {
     jsonevt_str * val_ctx = json_escape_c_buffer(val, val_size, JSON_EVT_OPTION_NONE);
     int rv;
@@ -460,11 +550,27 @@ jsonevt_hash_append_entry(jsonevt_hash * ctx, char * key, size_t key_size, char 
 }
 
 int
-jsonevt_hash_append_string_entry(jsonevt_hash * hash, char * key, char * val) {
-    return jsonevt_hash_append_entry(hash, key, strlen(key), val, strlen(val));
+jsonevt_hash_append_string_buffer(jsonevt_hash * hash, char * key, char * val) {
+    return jsonevt_hash_append_buffer(hash, key, strlen(key), val, strlen(val));
 }
 
 void
 jsonevt_hash_disown_buffer(jsonevt_hash *hash) {
     json_str_disown_buffer(hash->str_ctx);
 }
+
+int
+jsonevt_hash_add_data(jsonevt_hash *dest, jsonevt_writer_data *src, char *key, size_t key_len) {
+
+    size_t src_len = 0;
+    char *src_buf = 0;
+    int rv = 0;
+
+    src_buf = jsonevt_get_data_string(src, &src_len);
+    rv = jsonevt_hash_append_raw_entry(dest, key, key_len, src_buf, src_len);
+
+    /* FIXME: decide here whether to free data in src */
+
+    return rv;
+}
+

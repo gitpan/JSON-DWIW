@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2007-2008 Don Owens <don@regexguy.com>.  All rights reserved.
+Copyright (c) 2007-2009 Don Owens <don@regexguy.com>.  All rights reserved.
 
  This is free software; you can redistribute it and/or modify it under
  the Perl Artistic license.  You should have received a copy of the
@@ -48,14 +48,14 @@ JSON_TRACE(char *fmt, ...) {
 
 #endif /* ifndef JSONEVT_HAVE_FULL_VARIADIC_MACROS */
 
-
+/* get rid of "value computed is not used" warnings */
+#define IGNORE_RV(x) (void)(x)
 
 static SV *
 vjson_encode_error(self_context * ctx, const char * file, int line_num, const char * fmt, va_list *ap_ptr) {
     SV * error = newSVpv("", 0);
     bool junk = 0;
     HV * error_data = Nullhv;
-    SV **s;
 
     sv_setpvf(error, "JSON::DWIW v%s - ", MOD_VERSION);
 
@@ -64,7 +64,7 @@ vjson_encode_error(self_context * ctx, const char * file, int line_num, const ch
     error_data = newHV();
     ctx->error_data = newRV_noinc((SV *)error_data);
 
-    s = hv_store(error_data, "version", 7, newSVpvf("%s", MOD_VERSION), 0);
+    IGNORE_RV(hv_store(error_data, "version", 7, newSVpvf("%s", MOD_VERSION), 0));
 
     return error;
 }
@@ -905,7 +905,7 @@ to_json(self_context * self, SV * data_ref, int indent_level, unsigned int cur_l
             return rsv;
         }
         else {
-            hv_store_ent(self->ref_track, ref_tmp, newSV(0), 0);
+            IGNORE_RV(hv_store_ent(self->ref_track, ref_tmp, newSV(0), 0));
             SvREFCNT_dec(ref_tmp);
         }
     }
@@ -1088,7 +1088,6 @@ to_json(self_context * self, SV * data_ref, int indent_level, unsigned int cur_l
 static int
 set_encode_stats(self_context * ctx, SV * stats_data_ref) {
     SV * data = Nullsv;
-    SV ** s;
 
     if (SvOK(stats_data_ref) && SvROK(stats_data_ref)) {
         data = SvRV(stats_data_ref);
@@ -1107,9 +1106,9 @@ set_encode_stats(self_context * ctx, SV * stats_data_ref) {
         hv_store((HV *)data, "numbers", 7, newSVuv(ctx->number_count), 0);
         */
 
-        s = hv_store((HV *)data, "hashes", 6, newSVuv(ctx->hash_count), 0);
-        s = hv_store((HV *)data, "arrays", 6, newSVuv(ctx->array_count), 0);
-        s = hv_store((HV *)data, "max_depth", 9, newSVuv(ctx->deepest_level), 0);
+        IGNORE_RV(hv_store((HV *)data, "hashes", 6, newSVuv(ctx->hash_count), 0));
+        IGNORE_RV(hv_store((HV *)data, "arrays", 6, newSVuv(ctx->array_count), 0));
+        IGNORE_RV(hv_store((HV *)data, "max_depth", 9, newSVuv(ctx->deepest_level), 0));
 
     }
 

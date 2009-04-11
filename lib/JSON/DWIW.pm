@@ -155,7 +155,7 @@ require DynaLoader;
 Exporter::export_ok_tags('all');
 
 # change in POD as well!
-our $VERSION = '0.29';
+our $VERSION = '0.30';
 
 {
     package JSON::DWIW::Exporter;
@@ -857,7 +857,7 @@ Thanks to Robert Peters for discovering and tracking down the source of a number
 
 =head1 LICENSE AND COPYRIGHT
 
-Copyright (c) 2007-2008 Don Owens <don@regexguy.com>.  All rights reserved.
+Copyright (c) 2007-2009 Don Owens <don@regexguy.com>.  All rights reserved.
 
 This is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.  See perlartistic.
@@ -878,7 +878,7 @@ PURPOSE.
 
 =head1 VERSION
 
-0.29
+0.30
 
 =cut
 

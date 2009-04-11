@@ -4,7 +4,7 @@
 
 /*
 
- Copyright (c) 2007-2008 Don Owens <don@regexguy.com>.  All rights reserved.
+ Copyright (c) 2007-2009 Don Owens <don@regexguy.com>.  All rights reserved.
 
  This is free software; you can redistribute it and/or modify it under
  the Perl Artistic license.  You should have received a copy of the
@@ -18,7 +18,7 @@
 
 */
 
-/* $Header: /repository/projects/libjsonevt/jsonevt.c,v 1.49 2009/02/19 17:22:19 don Exp $ */
+/* $Header: /repository/projects/libjsonevt/jsonevt.c,v 1.51 2009/02/24 06:22:21 don Exp $ */
 
 /*
 #if defined(__WIN32) || defined(WIN32) || defined(_WIN32)
@@ -119,7 +119,7 @@ json_utf8_to_uni_with_check(json_context * ctx, char * str, uint cur_len, uint *
     return uval;
 }
 
-#define UTF8_TO_CODE_POINT(ctx, str, cur_len, ret_len) ( cur_len > 0 ? ( UTF8_BYTE_IS_INVARIANT(*str) ? ( (ret_len ? *ret_len = 1 : 0), (uint)*str) : json_utf8_to_uni_with_check(ctx, str, cur_len, ret_len, 0)) : 0 )
+#define UTF8_TO_CODE_POINT(ctx, str, cur_len, ret_len) ( cur_len > 0 ? ( UTF8_BYTE_IS_INVARIANT(*str) ? ( (*ret_len = 1), (uint)*str) : json_utf8_to_uni_with_check(ctx, str, cur_len, ret_len, 0)) : 0 )
 
 #define READ_CHAR(ctx, ret_len) ( HAVE_MORE_CHARS(ctx) ? (UTF8_TO_CODE_POINT(ctx, &(ctx)->buf[(ctx)->pos], (ctx)->len - (ctx)->pos, ret_len)) : 0 )
 
@@ -170,57 +170,6 @@ next_char(json_context * ctx) {
     ctx->char_pos++;
 
     return ctx->cur_char;
-}
-
-static int
-js_vasprintf(char **ret, const char *fmt, va_list *ap_ptr) {
-#if !defined(JSONEVT_ON_WINDOWS) && defined(HAVE_FUNC_VASPRINTF)
-    return vasprintf(ret, fmt, *ap_ptr);
-#else
-    char buf[4096];
-    int rv = 0;
-
-    UNLESS (ret) {
-        return 0;
-    }
-    
-    *ret = NULL;
-
-    rv = vsnprintf(buf, 4096, fmt, *ap_ptr);
-    if (rv < 0) {
-        return rv;
-    }
-
-    if (rv >= 4096) {
-        /* just drop the rest of the msg */
-        rv = 4095;
-    }
-
-    *ret = (char *)malloc(rv + 1);
-    UNLESS (*ret) {
-        return -1;
-    }
-
-    MEM_CPY(*ret, buf, rv + 1);
-    
-    (*ret)[rv] = '\x00'; /* in case the original buf was not large enough */
-
-    return rv;
-#endif
-}
-
-int
-js_asprintf(char ** ret, const char * fmt, ...) {
-    va_list ap;
-    int rv = 0;
-    
-    va_start(ap, fmt);
-
-    rv = js_vasprintf(ret, fmt, &ap);
-
-    va_end(ap);
-
-    return rv;
 }
 
 static char *
