@@ -12,6 +12,10 @@ SYNOPSIS
      my $data = JSON::DWIW::deserialize($json_str);
      my $error_str = JSON::DWIW::get_error_string;
 
+     use JSON::DWIW qw/deserialize_json from_json/
+     my $data = deserialize_json($json_str);
+     my $error_str = JSON::DWIW::get_error_string;
+
      my $error_string = $json_obj->get_error_string;
      my $error_data = $json_obj->get_error_data;
      my $stats = $json_obj->get_stats;
@@ -168,9 +172,23 @@ METHODS
 
      Aliases: toJson, toJSON, objToJson
 
-  from_json
+  deserialize($json_str, \%options)
     Returns the Perl data structure for the given JSON string. The value for
     true becomes 1, false becomes 0, and null gets converted to undef.
+
+    This function should not be called as a method (for performance
+    reasons). Unlike from_json(), it returns a single value, the data
+    structure resulting from the conversion. If the return value is undef,
+    check the result of the get_error_string() function/method to see if an
+    error is defined.
+
+  deserialize_file($file, \%options)
+    Same as deserialize, except that it takes a file as an argument. On
+    Unix, this mmap's the file, so it does not load a big file into memory
+    all at once, and does less buffer copying.
+
+  from_json
+    Similar to deserialize(), but expects to be called as a method.
 
     Called in list context, this method returns a list whose first element
     is the data and the second element is the error message, if any. If
@@ -185,20 +203,10 @@ METHODS
 
      Aliases: fromJson, fromJSON, jsonToObj
 
-  deserialize($json_str, \%options)
-    Converts from JSON to Perl. This function is a rewrite from the ground
-    up of from_json for speed. It is not yet guaranteed to be feature/bug
-    compatible with from_json.
-
-    This function should not be called as a method (for performance
-    reasons). Unlike from_json(), it returns a single value, the data
-    structure resulting from the conversion. If the return value is undef,
-    check the result of the get_error_string() function/method to see if an
-    error is defined.
-
   from_json_file
-    Returns the Perl data structure for the JSON object in the given file.
-    Currently, this method slurps in the whole file, then parses it.
+    Similar to deserialize_file(), except that it expects to be called a a
+    method, and it also returns the error, if any, when called in list
+    context.
 
     my ($data, $error_msg) = $json->from_json_file($file, \%options)
 

@@ -1248,7 +1248,8 @@ has_deserialize(...)
 SV *
 deserialize(SV * data, ...)
     ALIAS:
-        JSON::DWIW::load = 1
+    JSON::DWIW::load = 1
+    JSON::DWIW::deserialize_json = 2
 
     PREINIT:
     SV * self = Nullsv;
@@ -1645,7 +1646,7 @@ _check_scalar(SV *, SV * the_scalar)
 SV *
 skip_deserialize_file()
  CODE:
- RETVAL = &PL_sv_yes;
+ RETVAL = &PL_sv_no;
  OUTPUT:
  RETVAL
 

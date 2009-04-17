@@ -8,9 +8,9 @@ use warnings;
 
 use Test;
 
-BEGIN { plan tests => 3 };
+BEGIN { plan tests => 5 };
 
-use JSON::DWIW;
+use JSON::DWIW qw/deserialize_json from_json/;
 
 my $json = '{"var1":"val1"}';
 my $data = { var1 => 'val1' };
@@ -29,3 +29,8 @@ skip($deser_skip, ($stats and $stats->{strings} == 2 and $stats->{hashes} == 1))
 my $str = JSON::DWIW::serialize($data);
 ok($str and $str eq '{"var1":"val1"}');
 
+$data = deserialize_json($json);
+ok($data and $data->{var1} eq 'val1');
+
+$data = from_json($json);
+ok($data and $data->{var1} eq 'val1');

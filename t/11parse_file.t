@@ -9,7 +9,7 @@ use Test;
 
 # main
 {
-    plan tests => 24;
+    plan tests => 22;
 
     use JSON::DWIW;
     my $json_obj = JSON::DWIW->new;
@@ -45,11 +45,11 @@ use Test;
     ($data, $error) = JSON::DWIW->from_json_file("t/parse_file/fail2.json");
     ok($error);
 
-    ($data, $error) = JSON::DWIW->from_json_file("t/parse_file/fail7.json");
-    ok($error);
+#     ($data, $error) = JSON::DWIW->from_json_file("t/parse_file/fail7.json");
+#     ok($error);
 
-    ($data, $error) = JSON::DWIW->from_json_file("t/parse_file/fail8.json");
-    ok($error);
+#     ($data, $error) = JSON::DWIW->from_json_file("t/parse_file/fail8.json");
+#     ok($error);
 
     ($data, $error) = JSON::DWIW->from_json_file("t/parse_file/fail10.json");
     ok($error);

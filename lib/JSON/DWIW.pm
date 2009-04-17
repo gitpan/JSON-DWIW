@@ -32,6 +32,10 @@ JSON::DWIW - JSON converter that Does What I Want
  my $data = JSON::DWIW::deserialize($json_str);
  my $error_str = JSON::DWIW::get_error_string;
 
+ use JSON::DWIW qw/deserialize_json from_json/
+ my $data = deserialize_json($json_str);
+ my $error_str = JSON::DWIW::get_error_string;
+
  my $error_string = $json_obj->get_error_string;
  my $error_data = $json_obj->get_error_data;
  my $stats = $json_obj->get_stats;
@@ -150,12 +154,15 @@ require DynaLoader;
 
 @EXPORT = ( );
 @EXPORT_OK = ();
-%EXPORT_TAGS = (all => [ 'to_json', 'from_json' ]);
+%EXPORT_TAGS = (all => [ 'to_json', 'from_json', 'deserialize_json' ]);
 
 Exporter::export_ok_tags('all');
 
 # change in POD as well!
-our $VERSION = '0.30';
+our $VERSION = '0.31';
+
+JSON::DWIW->bootstrap($VERSION);
+
 
 {
     package JSON::DWIW::Exporter;
@@ -166,6 +173,8 @@ our $VERSION = '0.30';
     *EXPORT_OK = \@JSON::DWIW::EXPORT_OK;
     *EXPORT_TAGS = \%JSON::DWIW::EXPORT_TAGS;
 
+    *deserialize_json = \&JSON::DWIW::deserialize_json;
+
     sub import {
         JSON::DWIW::Exporter->export_to_level(2, @_);
     }
@@ -175,15 +184,14 @@ our $VERSION = '0.30';
     }
 
     sub from_json {
-        return JSON::DWIW->from_json(@_);
+        # return JSON::DWIW->from_json(@_);
+        return JSON::DWIW::deserialize(@_);
     }
 }
 
 sub import {
     JSON::DWIW::Exporter::import(@_);
 }
-
-JSON::DWIW->bootstrap($VERSION);
 
 {
     # workaround for weird importing bug on some installations
@@ -387,11 +395,31 @@ sub serialize {
 
 =pod
 
-=head2 from_json
+=head2 deserialize($json_str, \%options)
 
 Returns the Perl data structure for the given JSON string.  The
 value for true becomes 1, false becomes 0, and null gets
 converted to undef.
+
+This function should not be called as a method (for performance
+reasons).  Unlike from_json(), it returns a single value, the
+data structure resulting from the conversion.  If the return
+value is undef, check the result of the get_error_string()
+function/method to see if an error is defined.
+
+=head2 deserialize_file($file, \%options)
+
+Same as deserialize, except that it takes a file as an argument.
+On Unix, this mmap's the file, so it does not load a big file
+into memory all at once, and does less buffer copying.
+
+=cut
+
+=pod
+
+=head2 from_json
+
+Similar to deserialize(), but expects to be called as a method.
 
 Called in list context, this method returns a list whose first
 element is the data and the second element is the error message,
@@ -435,27 +463,46 @@ sub from_json {
         $self = JSON::DWIW->new(@_);
     }
 
-    my $error_msg;
-    my $error_data;
-    my $stats_data = { };
-    my $data = _xs_from_json($self, $json, \$error_msg, \$error_data, $stats_data);
-
-    if ($stats_data) {
-        $JSON::DWIW::Last_Stats = $stats_data;
-        $self->{last_stats} = $stats_data;
+    my $data;
+    if (%$self) {
+        $data = JSON::DWIW::deserialize($json, $self);
+    }
+    else {
+        $data = JSON::DWIW::deserialize($json);
     }
 
-    $JSON::DWIW::LastError = $error_msg;
-    $self->{last_error} = $error_msg;
+    $self->{last_error} = $JSON::DWIW::LastError;
+    $self->{last_error_data} = $JSON::DWIW::LastErrorData;
+    $self->{last_stats} = $JSON::DWIW::Last_Stats;
 
-    $JSON::DWIW::LastErrorData = $error_data;
-    $self->{last_error_data} = $error_data;
+    if (defined($JSON::DWIW::LastError) and $self->{use_exceptions}) {
+        die $JSON::DWIW::LastError;
+    }
+
+    return wantarray ? ($data, $JSON::DWIW::LastError) : $data;
+        
+
+#     my $error_msg;
+#     my $error_data;
+#     my $stats_data = { };
+#     my $data = _xs_from_json($self, $json, \$error_msg, \$error_data, $stats_data);
+
+#     if ($stats_data) {
+#         $JSON::DWIW::Last_Stats = $stats_data;
+#         $self->{last_stats} = $stats_data;
+#     }
+
+#     $JSON::DWIW::LastError = $error_msg;
+#     $self->{last_error} = $error_msg;
+
+#     $JSON::DWIW::LastErrorData = $error_data;
+#     $self->{last_error_data} = $error_data;
     
-    if (defined($error_msg) and $self->{use_exceptions}) {
-        die $error_msg;
-    }
+#     if (defined($error_msg) and $self->{use_exceptions}) {
+#         die $error_msg;
+#     }
 
-    return wantarray ? ($data, $error_msg) : $data;
+#     return wantarray ? ($data, $error_msg) : $data;
 }
 
 {
@@ -467,30 +514,11 @@ sub from_json {
 
 =pod
 
-=head2 deserialize($json_str, \%options)
-
-Converts from JSON to Perl.  This function is a rewrite from the
-ground up of from_json for speed.  It is not yet guaranteed to be
-feature/bug compatible with from_json.
-
-This function should not be called as a method (for performance
-reasons).  Unlike from_json(), it returns a single value, the
-data structure resulting from the conversion.  If the return
-value is undef, check the result of the get_error_string()
-function/method to see if an error is defined.
-
-=cut
-
-# =head2 deserialize_file($file, \%options);
-
-
-=pod
-
 =head2 from_json_file
 
-Returns the Perl data structure for the JSON object in the given
-file.  Currently, this method slurps in the whole file, then
-parses it.
+Similar to deserialize_file(), except that it expects to be
+called a a method, and it also returns the error, if any, when called
+in list context.
 
 my ($data, $error_msg) = $json->from_json_file($file, \%options)
 
@@ -521,48 +549,67 @@ sub from_json_file {
         $self = JSON::DWIW->new(@_);
     }
 
-    my $in_fh;
-    unless (open($in_fh, '<', $file)) {
-        my $msg = "JSON::DWIW v$VERSION - couldn't open input file $file";
-        $JSON::DWIW::LastError = $msg;
-        $self->{last_error} = $msg;
-
-        if ($self->{use_exceptions}) {
-            die $msg;
-        } else {
-            return wantarray ? ( undef, $msg ) : undef;
-        }
+    my $data;
+    if (%$self) {
+        $data = JSON::DWIW::deserialize_file($file, $self);
+    }
+    else {
+        $data = JSON::DWIW::deserialize_file($file);
     }
 
-    my $json;
-    {
-        local($/);
-        $json = <$in_fh>;
-    }
-    close $in_fh;
+    $self->{last_error} = $JSON::DWIW::LastError;
+    $self->{last_error_data} = $JSON::DWIW::LastErrorData;
+    $self->{last_stats} = $JSON::DWIW::Last_Stats;
 
-    my $error_msg;
-    my $error_data;
-    my $stats_data = { };
-    my $data = _xs_from_json($self, $json, \$error_msg, \$error_data, $stats_data);
+    if (defined($JSON::DWIW::LastError) and $self->{use_exceptions}) {
+        die $JSON::DWIW::LastError;
+    }
+
+    return wantarray ? ($data, $JSON::DWIW::LastError) : $data;
+
+
+#     my $in_fh;
+#     unless (open($in_fh, '<', $file)) {
+#         my $msg = "JSON::DWIW v$VERSION - couldn't open input file $file";
+#         $JSON::DWIW::LastError = $msg;
+#         $self->{last_error} = $msg;
+
+#         if ($self->{use_exceptions}) {
+#             die $msg;
+#         } else {
+#             return wantarray ? ( undef, $msg ) : undef;
+#         }
+#     }
+
+#     my $json;
+#     {
+#         local($/);
+#         $json = <$in_fh>;
+#     }
+#     close $in_fh;
+
+#     my $error_msg;
+#     my $error_data;
+#     my $stats_data = { };
+#     my $data = _xs_from_json($self, $json, \$error_msg, \$error_data, $stats_data);
     
-    if ($stats_data) {
-        $JSON::DWIW::Last_Stats = $stats_data;
-        $self->{last_stats} = $stats_data;
-    }
+#     if ($stats_data) {
+#         $JSON::DWIW::Last_Stats = $stats_data;
+#         $self->{last_stats} = $stats_data;
+#     }
 
-    $JSON::DWIW::LastError = $error_msg;
-    $self->{last_error} = $error_msg;
+#     $JSON::DWIW::LastError = $error_msg;
+#     $self->{last_error} = $error_msg;
 
-    $JSON::DWIW::LastErrorData = $error_data;
-    $self->{last_error_data} = $error_data;
+#     $JSON::DWIW::LastErrorData = $error_data;
+#     $self->{last_error_data} = $error_data;
 
     
-    if (defined($error_msg) and $self->{use_exceptions}) {
-        die $error_msg;
-    }
+#     if (defined($error_msg) and $self->{use_exceptions}) {
+#         die $error_msg;
+#     }
 
-    return wantarray ? ($data, $error_msg) : $data;
+#     return wantarray ? ($data, $error_msg) : $data;
 }
 
 =pod
