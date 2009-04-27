@@ -18,7 +18,7 @@
 
 */
 
-/* $Header: /repository/projects/libjsonevt/json_writer.c,v 1.4 2009/04/11 02:18:38 don Exp $ */
+/* $Header: /repository/projects/libjsonevt/json_writer.c,v 1.6 2009-04-21 06:21:44 don Exp $ */
 
 #include "jsonevt_private.h"
 
@@ -28,42 +28,49 @@
 #include <stdarg.h>
 #include <sys/types.h>
 
-
+#define WR_TYPE_PREFIX \
+    jsonevt_data_type type
 
 typedef enum {
-    unknown, str, array, hash, float_val, int_val, uint_val, bool_val
+    unknown, str, array, hash, float_val, int_val, uint_val, bool_val, data
 } jsonevt_data_type;
 
 struct jsonevt_writer_data_struct {
-    jsonevt_data_type type;
+    WR_TYPE_PREFIX;
 };
 
 struct jsonevt_float_struct {
-    jsonevt_data_type type;
+    WR_TYPE_PREFIX;
     double val;
 };
 
 struct jsonevt_int_struct {
-    jsonevt_data_type type;
+    WR_TYPE_PREFIX;
     long val;
 };
 
 struct jsonevt_uint_struct {
-    jsonevt_data_type type;
+    WR_TYPE_PREFIX;
     unsigned long val;
 };
 
 struct jsonevt_bool_struct {
-    jsonevt_data_type type;
+    WR_TYPE_PREFIX;
     int val;
 };
 
-struct jsonevt_str_struct {
-    jsonevt_data_type type;
+struct jsonevt_string_struct {
+    WR_TYPE_PREFIX;
+    size_t size;
+    char * data;
+};
+
+typedef struct {
+    WR_TYPE_PREFIX; /* for debugging */
     size_t max_size;
     size_t used_size;
-    char * str;
-};
+    char * data;
+} _jsonevt_buf;
 
 /* typedef struct jsonevt_str_struct json_str_ctx; */
 
@@ -75,8 +82,8 @@ struct json_array_flags {
 };
 
 struct jsonevt_array_struct {
-    jsonevt_data_type type;
-    jsonevt_str * str_ctx;
+    WR_TYPE_PREFIX;
+    _jsonevt_buf * str_ctx;
     size_t count;
     struct json_array_flags flags;
 };
@@ -88,8 +95,8 @@ struct json_hash_flags {
 };
 
 struct jsonevt_hash_struct {
-    jsonevt_data_type type;
-    jsonevt_str * str_ctx;
+    WR_TYPE_PREFIX;
+    _jsonevt_buf * str_ctx;
     size_t count;
     struct json_hash_flags flags;
 };
@@ -106,21 +113,21 @@ _json_realloc(void *buf, size_t size) {
 }
 
 static char *
-json_ensure_buf_size(jsonevt_str * ctx, size_t size) {
+_json_ensure_buf_size(_jsonevt_buf * ctx, size_t size) {
     if (size == 0) {
         size = 1;
     }
 
-    if (ctx->str == 0) {
-        ctx->str = _json_malloc(size);
+    if (ctx->data == 0) {
+        ctx->data = _json_malloc(size);
         ctx->max_size = size;
     }
     else if (size > ctx->max_size) {
-        ctx->str = _json_realloc(ctx->str, size);
+        ctx->data = _json_realloc(ctx->data, size);
         ctx->max_size = size;
     }
 
-    return ctx->str;
+    return ctx->data;
 }
 
 jsonevt_float *
@@ -167,65 +174,88 @@ jsonevt_new_bool(int val) {
     return ctx;
 }
 
-
-static jsonevt_str *
-json_new_str(size_t size) {
-    jsonevt_str * ctx = _json_malloc(sizeof(jsonevt_str));
+jsonevt_string *
+jsonevt_new_string(char * buf, size_t size) {
+    jsonevt_string * ctx = _json_malloc(sizeof(jsonevt_string));
     
-    memset(ctx, 0, sizeof(jsonevt_str));
+    UNLESS (buf) {
+        size = 0;
+    }
+
+    memset(ctx, 0, sizeof(jsonevt_string));
     ctx->type = str;
+    ctx->size = size;
+    ctx->data = (char *)_json_malloc(size + 1);
+    
+    memcpy(ctx->data, buf, size);
+    ctx->data[size] = 0;
+
+    return ctx;
+}
+
+
+static _jsonevt_buf *
+json_new_buf(size_t size) {
+    _jsonevt_buf * ctx = _json_malloc(sizeof(_jsonevt_buf));
+    
+    memset(ctx, 0, sizeof(_jsonevt_buf));
+    ctx->type = data;
 
     if (size > 0) {
-        json_ensure_buf_size(ctx, size + 1);
+        _json_ensure_buf_size(ctx, size + 1);
     }
 
     return ctx;
 }
 
 static void
-json_free_str(jsonevt_str * ctx) {
+_json_free_buf(_jsonevt_buf * ctx) {
 
     if (! ctx) {
         return;
     }
 
-    if (ctx->str) {
-        free(ctx->str);
+    if (ctx->data) {
+        free(ctx->data);
     }
 
     free(ctx);
 }
 
 static void
-json_str_disown_buffer(jsonevt_str *ctx) {
+json_str_disown_buffer(_jsonevt_buf *ctx) {
     if (ctx) {
-        memset(ctx, 0, sizeof(jsonevt_str));
+        memset(ctx, 0, sizeof(_jsonevt_buf));
     }
 }
 
 static int
-json_append_bytes(jsonevt_str * ctx, char * str, size_t length) {
+json_append_bytes(_jsonevt_buf * ctx, char * data, size_t length) {
     size_t new_size;
+
+    UNLESS (data) {
+        length = 0;
+    }
 
     if (ctx->max_size - ctx->used_size < length + 1) {
         new_size = length + 1 + ctx->used_size;
-        json_ensure_buf_size(ctx, new_size);
+        _json_ensure_buf_size(ctx, new_size);
     }
 
-    memcpy(&(ctx->str[ctx->used_size]), str, length);
+    memcpy(&(ctx->data[ctx->used_size]), data, length);
     ctx->used_size += length;
-    ctx->str[ctx->used_size] = '\x00';
+    ctx->data[ctx->used_size] = '\x00';
 
     return 1;
 }
 
 static int
-json_append_one_byte(jsonevt_str * ctx, char to_append) {
+json_append_one_byte(_jsonevt_buf * ctx, char to_append) {
     return json_append_bytes(ctx, &to_append, 1);
 }
 
 static int
-json_append_unicode_char(jsonevt_str * ctx, uint32_t code_point)  {
+json_append_unicode_char(_jsonevt_buf * ctx, uint32_t code_point)  {
     uint32_t size = 0;
     uint8_t bytes[4];
 
@@ -235,17 +265,17 @@ json_append_unicode_char(jsonevt_str * ctx, uint32_t code_point)  {
 }
 
 static char *
-json_get_str_buffer(jsonevt_str * ctx, size_t * size) {
+json_get_str_buffer(_jsonevt_buf * ctx, size_t * size) {
     if (size) {
         *size = ctx->used_size;
     }
     
-    return ctx->str;
+    return ctx->data;
 }
 
-static jsonevt_str *
-json_escape_c_buffer(char * str, size_t length, unsigned long options) {
-    jsonevt_str * ctx = json_new_str(length + 1);
+static _jsonevt_buf *
+_json_escape_c_buffer(char * str, size_t length, unsigned long options) {
+    _jsonevt_buf * ctx = json_new_buf(length + 1);
     size_t i;
     uint32_t this_char;
     char * tmp_buf = NULL;
@@ -327,12 +357,12 @@ char *
 jsonevt_escape_c_buffer(char * in_buf, size_t length_in, size_t *length_out,
     unsigned long options) {
 
-    jsonevt_str *str = json_escape_c_buffer(in_buf, length_in, options);
+    _jsonevt_buf *str = _json_escape_c_buffer(in_buf, length_in, options);
     char *ret_buf;
 
     ret_buf = json_get_str_buffer(str, length_out);
     json_str_disown_buffer(str);
-    json_free_str(str);
+    _json_free_buf(str);
 
     return ret_buf;
 }
@@ -353,7 +383,7 @@ jsonevt_free_array(jsonevt_array * ctx) {
     }
 
     if (ctx->str_ctx) {
-        json_free_str(ctx->str_ctx);
+        _json_free_buf(ctx->str_ctx);
     }
 
     free(ctx);
@@ -362,7 +392,7 @@ jsonevt_free_array(jsonevt_array * ctx) {
 void
 jsonevt_array_start(jsonevt_array * ctx) {
     UNLESS (ctx->flags.started) {
-        ctx->str_ctx = json_new_str(1);
+        ctx->str_ctx = json_new_buf(1);
         json_append_one_byte(ctx->str_ctx, '[');
 
         ctx->flags.started = 1;
@@ -386,14 +416,14 @@ jsonevt_array_get_string(jsonevt_array * ctx, size_t * length_ptr) {
         *length_ptr = ctx->str_ctx->used_size;
     }
 
-    return ctx->str_ctx->str;
+    return ctx->str_ctx->data;
 }
 
 
 int
 jsonevt_array_append_raw_element(jsonevt_array * ctx, char * buf, size_t length) {
     UNLESS (ctx->flags.started) {
-        ctx->str_ctx = json_new_str(1 + length);
+        ctx->str_ctx = json_new_buf(1 + length);
         json_append_one_byte(ctx->str_ctx, '[');
         ctx->flags.started = 1;
     }
@@ -409,11 +439,11 @@ jsonevt_array_append_raw_element(jsonevt_array * ctx, char * buf, size_t length)
 
 int
 jsonevt_array_append_buffer(jsonevt_array * ctx, char * buf, size_t length) {
-    jsonevt_str * str_ctx = json_escape_c_buffer(buf, length, JSON_EVT_OPTION_NONE);
+    _jsonevt_buf * str_ctx = _json_escape_c_buffer(buf, length, JSON_EVT_OPTION_NONE);
     int rv;
 
-    rv = jsonevt_array_append_raw_element(ctx, str_ctx->str, str_ctx->used_size);
-    json_free_str(str_ctx);
+    rv = jsonevt_array_append_raw_element(ctx, str_ctx->data, str_ctx->used_size);
+    _json_free_buf(str_ctx);
     return rv;
 }
 
@@ -459,7 +489,7 @@ jsonevt_free_hash(jsonevt_hash * ctx) {
     }
 
     if (ctx->str_ctx) {
-        json_free_str(ctx->str_ctx);
+        _json_free_buf(ctx->str_ctx);
     }
 
     free(ctx);
@@ -468,7 +498,7 @@ jsonevt_free_hash(jsonevt_hash * ctx) {
 void
 jsonevt_hash_start(jsonevt_hash * ctx) {
     if (! ctx->flags.started) {
-        ctx->str_ctx = json_new_str(0);
+        ctx->str_ctx = json_new_buf(0);
         json_append_one_byte(ctx->str_ctx, '{');
         ctx->flags.started = 1;
     }
@@ -489,7 +519,20 @@ jsonevt_hash_get_string(jsonevt_hash * ctx, size_t * length_ptr) {
         *length_ptr = ctx->str_ctx->used_size;
     }
 
-    return ctx->str_ctx->str;
+    return ctx->str_ctx->data;
+}
+
+char *
+jsonevt_string_get_string(jsonevt_string *ctx, size_t * length_ptr) {
+    UNLESS (ctx->data) {
+        return NULL;
+    }
+
+    if (length_ptr) {
+        *length_ptr = ctx->size;
+    }
+
+    return ctx->data;
 }
 
 char *
@@ -506,7 +549,7 @@ jsonevt_get_data_string(jsonevt_writer_data *ctx, size_t *length_ptr) {
         return jsonevt_hash_get_string((jsonevt_hash *)ctx, length_ptr);
     }
     else if (ctx->type == str) {
-        return json_get_str_buffer((jsonevt_str *)ctx, length_ptr);
+        return jsonevt_string_get_string((jsonevt_string *)ctx, length_ptr);
     }
 
     *length_ptr = 0;
@@ -516,11 +559,11 @@ jsonevt_get_data_string(jsonevt_writer_data *ctx, size_t *length_ptr) {
 int
 jsonevt_hash_append_raw_entry(jsonevt_hash * ctx, char * key, size_t key_size, char * val,
     size_t val_size) {
-    jsonevt_str * key_ctx = json_escape_c_buffer(key, key_size, JSON_EVT_OPTION_NONE);
+    _jsonevt_buf * key_ctx = _json_escape_c_buffer(key, key_size, JSON_EVT_OPTION_NONE);
 
     if (! ctx->flags.started) {
         /* add 3 -- 1 for open brace, 1 for closing brace, one for the colon */
-        ctx->str_ctx = json_new_str(3 + key_ctx->used_size + val_size);
+        ctx->str_ctx = json_new_buf(3 + key_ctx->used_size + val_size);
         json_append_one_byte(ctx->str_ctx, '{');
         ctx->flags.started = 1;
     }
@@ -528,12 +571,12 @@ jsonevt_hash_append_raw_entry(jsonevt_hash * ctx, char * key, size_t key_size, c
         json_append_one_byte(ctx->str_ctx, ',');
     }
 
-    json_append_bytes(ctx->str_ctx, key_ctx->str, key_ctx->used_size);
+    json_append_bytes(ctx->str_ctx, key_ctx->data, key_ctx->used_size);
     json_append_one_byte(ctx->str_ctx, ':');
     json_append_bytes(ctx->str_ctx, val, val_size);
     ctx->count++;
 
-    json_free_str(key_ctx);
+    _json_free_buf(key_ctx);
 
     return 1;
 }
@@ -541,11 +584,11 @@ jsonevt_hash_append_raw_entry(jsonevt_hash * ctx, char * key, size_t key_size, c
 int
 jsonevt_hash_append_buffer(jsonevt_hash * ctx, char * key, size_t key_size, char * val,
     size_t val_size) {
-    jsonevt_str * val_ctx = json_escape_c_buffer(val, val_size, JSON_EVT_OPTION_NONE);
+    _jsonevt_buf * val_ctx = _json_escape_c_buffer(val, val_size, JSON_EVT_OPTION_NONE);
     int rv;
 
-    rv = jsonevt_hash_append_raw_entry(ctx, key, key_size, val_ctx->str, val_ctx->used_size);
-    json_free_str(val_ctx);
+    rv = jsonevt_hash_append_raw_entry(ctx, key, key_size, val_ctx->data, val_ctx->used_size);
+    _json_free_buf(val_ctx);
     return rv;
 }
 
@@ -574,3 +617,18 @@ jsonevt_hash_add_data(jsonevt_hash *dest, jsonevt_writer_data *src, char *key, s
     return rv;
 }
 
+int
+jsonevt_do_unit_tests() {
+    _jsonevt_buf * val_ctx;
+    char *test_buf = "foo \x0a \"\xe7\x81\xab\" bar";
+    char *expected_buf = NULL;
+
+    val_ctx = _json_escape_c_buffer(test_buf, strlen(test_buf), JSON_EVT_OPTION_NONE);
+    
+    expected_buf = "foo \x0a \\\"\xe7\x81\xab\\\" bar";
+
+    printf("in: %s\n", test_buf);
+    printf("out: %s\n", val_ctx->data);
+
+    return 0;
+}

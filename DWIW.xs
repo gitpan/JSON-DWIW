@@ -16,8 +16,11 @@ Copyright (c) 2007-2009 Don Owens <don@regexguy.com>.  All rights reserved.
 /* #define PERL_NO_GET_CONTEXT */
 
 #include "DWIW.h"
-#include "old_parse.h"
+#include "old_common.h"
 
+/*
+#include "old_parse.h"
+*/
 
 #ifndef JSONEVT_HAVE_FULL_VARIADIC_MACROS
 
@@ -147,9 +150,7 @@ static SV * get_ref_addr(SV * ref);
 
 #define JsDumpSv(sv, flags) if (flags & kDumpVars) { sv_dump(sv); }
 
-
-
-
+/*
 static SV *
 from_json_sv (SV * self, SV * data_sv, SV ** error_msg, int *throw_exception,
     SV * error_data_ref, SV * stats_data_ref) {
@@ -161,6 +162,7 @@ from_json_sv (SV * self, SV * data_sv, SV ** error_msg, int *throw_exception,
     return from_json(self, data_str, data_str_len, error_msg, throw_exception, error_data_ref,
         stats_data_ref);
 }
+*/
 
 static SV *
 has_jsonevt() {
@@ -260,13 +262,23 @@ parse_json_file(SV * self, SV * file, SV * error_msg_ref) {
 }
 #endif
 
+static char *
+_safe_dup_buf(char *buf, uint32_t buf_len) {
+    char *dest = (char *)malloc(buf_len + 1);
+
+    memcpy(dest, buf, buf_len);
+    dest[buf_len] = 0;
+
+    return dest;
+}
+
 static SV *
 escape_json_str(self_context * self, SV * sv_str) {
     U8 * data_str;
     STRLEN data_str_len;
     STRLEN needed_len = 0;
     STRLEN sv_pos = 0;
-    STRLEN len = 0;
+    uint32_t len = 0;
     U8 tmp_char = 0x00;
     SV * rv;
     int check_unicode = 1; /* FIXME: get rid of this */
@@ -275,6 +287,7 @@ escape_json_str(self_context * self, SV * sv_str) {
     int escape_unicode = 0;
     int pass_bad_char = 0;
     uint32_t len32 = 0;
+    char *err_str = Nullch;
 
     memzero(unicode_bytes, 5); /* memzero macro provided by Perl */
 
@@ -320,50 +333,43 @@ escape_json_str(self_context * self, SV * sv_str) {
     fprintf(stderr, "==========\n");
 #endif
     
-
     for (sv_pos = 0; sv_pos < data_str_len; sv_pos++) {
         pass_bad_char = 0;
 
-        if (check_unicode) {
-            len = UTF8SKIP(&data_str[sv_pos]);
-            if (len > 1) {
-                this_uv = convert_utf8_to_uv(&data_str[sv_pos], &len);
+        /* this_uv = convert_utf8_to_uv(&data_str[sv_pos], &len); */
+        this_uv = (UV)utf8_bytes_to_unicode((uint8_t *)(&data_str[sv_pos]), data_str_len - sv_pos, &len);
+            
+        if (len == 0) {
+            len = 1;
 
-                if (this_uv == 0 && data_str[sv_pos] != 0) {
-                    UNLESS (self->bad_char_policy) {
-                        /* default */
-                        
-                        if (data_str_len < 40) {
-                            self->error = JSON_ENCODE_ERROR(self,
-                                "bad utf8 sequence starting with %#02x - %s",
-                                (UV)data_str[sv_pos], data_str);
-                        }
-                        else {
-                            self->error = JSON_ENCODE_ERROR(self, "bad utf8 sequence starting with %#02x",
-                                (UV)data_str[sv_pos]);
-                        }
-                        
-                        sv_catpvn(rv, "\"", 1);
-                        return rv;
-                    }
-                    else if (self->bad_char_policy & kBadCharConvert) {
-                        this_uv = (UV)data_str[sv_pos];
-                    }
-                    else if (self->bad_char_policy & kBadCharPassThrough) {
-                        this_uv = (UV)data_str[sv_pos];
-                        pass_bad_char = 1;
-                    }
+            UNLESS (self->bad_char_policy) {
+                /* default */
+                this_uv = (UV)data_str[sv_pos];
+                if (data_str_len < 40) {
+                    err_str = _safe_dup_buf((char *)data_str, data_str_len);
+                    self->error = JSON_ENCODE_ERROR(self,
+                        "bad utf8 sequence starting with %#02"UVxf" - %s",
+                        this_uv, (char *)data_str);
+                    free(err_str);
                 }
-
-                sv_pos += len - 1;
+                else {
+                    self->error = JSON_ENCODE_ERROR(self,
+                        "bad utf8 sequence starting with %#02"UVxf, this_uv);
+                }
+                    
+                sv_catpvn(rv, "\"", 1);
+                return rv;
             }
-            else {
-                this_uv = data_str[sv_pos];
+            else if (self->bad_char_policy & kBadCharConvert) {
+                this_uv = (UV)data_str[sv_pos];
+            }
+            else if (self->bad_char_policy & kBadCharPassThrough) {
+                this_uv = (UV)data_str[sv_pos];
+                pass_bad_char = 1;
             }
         }
-        else {
-            this_uv = data_str[sv_pos];
-        }
+            
+        sv_pos += len - 1;
 
         switch (this_uv) {
           case '\\':
@@ -1216,6 +1222,8 @@ MODULE = JSON::DWIW  PACKAGE = JSON::DWIW
 
 PROTOTYPES: DISABLE
 
+=pod
+
 SV *
 _xs_from_json(SV * self, SV * data, SV * error_msg_ref, SV * error_data_ref, SV * stats_data_ref)
     PREINIT:
@@ -1236,6 +1244,8 @@ _xs_from_json(SV * self, SV * data, SV * error_msg_ref, SV * error_data_ref, SV 
 
     OUTPUT:
     RETVAL
+
+=cut
 
 SV *
 has_deserialize(...)

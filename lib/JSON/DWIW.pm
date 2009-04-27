@@ -86,6 +86,12 @@ Scalars that have been used as both a string and a number will be
 output as a string.  A reference to a reference is currently
 output as an empty string, but this may change.
 
+You may notice there is a deserialize function, but not a
+serialize one.  The deserialize function was written as a full
+rewrite (the parsing is in a separate, event-based library now)
+of from_json (now from_json calls deserialize).  In the future,
+there will be a serialize function that is a rewrite of to_json.
+
 =head2 Decoding
 
 Input is expected to utf-8.  When decoding, null, true, and false
@@ -159,7 +165,7 @@ require DynaLoader;
 Exporter::export_ok_tags('all');
 
 # change in POD as well!
-our $VERSION = '0.31';
+our $VERSION = '0.32';
 
 JSON::DWIW->bootstrap($VERSION);
 
@@ -902,6 +908,8 @@ Thanks to Nigel Bowden for helping with compilation on Windows.
 
 Thanks to Robert Peters for discovering and tracking down the source of a number parsing bug.
 
+Thanks to Mark Phillips for helping with a bug under Solaris on Sparc.
+
 =head1 LICENSE AND COPYRIGHT
 
 Copyright (c) 2007-2009 Don Owens <don@regexguy.com>.  All rights reserved.
@@ -925,7 +933,7 @@ PURPOSE.
 
 =head1 VERSION
 
-0.30
+0.32
 
 =cut
 

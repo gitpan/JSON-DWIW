@@ -18,7 +18,7 @@
 
 */
 
-/* $Header: /repository/projects/libjsonevt/jsonevt_private.h,v 1.33 2009/02/23 17:46:55 don Exp $ */
+/* $Header: /repository/projects/libjsonevt/jsonevt_private.h,v 1.33 2009-02-23 17:46:55 don Exp $ */
 
 #ifndef JSONEVT_PRIVATE_H
 #define JSONEVT_PRIVATE_H

@@ -18,7 +18,7 @@
 
 */
 
-/* $Header: /repository/projects/libjsonevt/uni.h,v 1.4 2009/02/23 17:46:55 don Exp $ */
+/* $Header: /repository/projects/libjsonevt/uni.h,v 1.4 2009-02-23 17:46:55 don Exp $ */
 
 #ifndef UNI_H
 #define UNI_H

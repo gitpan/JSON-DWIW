@@ -22,8 +22,10 @@ if ($^O =~ /MSWin/) {
 my @utf_files = qw/utf8 utf16 utf32/;
 my @utf_headers = map { "$_.h" } @utf_files;
 
+# my $obj_str = join(' ', map { "$_\$(OBJ_EXT)" } @utf_files, 'evt', 'jsonevt', 'json_writer',
+#                    'print', 'old_parse', 'old_common');
 my $obj_str = join(' ', map { "$_\$(OBJ_EXT)" } @utf_files, 'evt', 'jsonevt', 'json_writer',
-                   'print', 'old_parse', 'old_common');
+                   'print', 'old_common');
 
 sub MY::postamble {
     my ($self) = @_;
@@ -47,9 +49,10 @@ sub MY::postamble {
     $stuff .= "\$(INST_DYNAMIC): $obj_str $config_h\n\n";
     
     $stuff .= "evt\$(OBJ_EXT): evt.c\n\n";
-    $stuff .= "old_parse\$(OBJ_EXT): old_parse.c old_parse.h old_common.h\n\n";
+    # $stuff .= "old_parse\$(OBJ_EXT): old_parse.c old_parse.h old_common.h\n\n";
     $stuff .= "old_common\$(OBJ_EXT): old_common.c old_common.h\n\n";
-    $stuff .= "DWIW\$(OBJ_EXT): DWIW.h old_parse.h old_common.h $config_h\n\n";
+    # $stuff .= "DWIW\$(OBJ_EXT): DWIW.h old_parse.h old_common.h $config_h\n\n";
+    $stuff .= "DWIW\$(OBJ_EXT): DWIW.h old_common.h $config_h\n\n";
 
     my $make_conf = File::Spec->catfile($src_dir, 'make_config');
     my $exec_make_conf = File::Spec->rel2abs($make_conf);

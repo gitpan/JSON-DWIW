@@ -61,6 +61,12 @@ DESCRIPTION
     as a string. A reference to a reference is currently output as an empty
     string, but this may change.
 
+    You may notice there is a deserialize function, but not a serialize one.
+    The deserialize function was written as a full rewrite (the parsing is
+    in a separate, event-based library now) of from_json (now from_json
+    calls deserialize). In the future, there will be a serialize function
+    that is a rewrite of to_json.
+
   Decoding
     Input is expected to utf-8. When decoding, null, true, and false become
     undef, 1, and 0, repectively. Numbers that appear to be too long to be
@@ -333,6 +339,8 @@ ACKNOWLEDGEMENTS
     Thanks to Robert Peters for discovering and tracking down the source of
     a number parsing bug.
 
+    Thanks to Mark Phillips for helping with a bug under Solaris on Sparc.
+
 LICENSE AND COPYRIGHT
     Copyright (c) 2007-2009 Don Owens <don@regexguy.com>. All rights
     reserved.
@@ -353,5 +361,5 @@ SEE ALSO
      L<JSON::Syck> (included in L<YAML::Syck>)
 
 VERSION
-    0.30
+    0.32
 

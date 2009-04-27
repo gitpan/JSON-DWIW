@@ -18,7 +18,7 @@
 
 */
 
-/* $Header: /repository/projects/libjsonevt/utf16.h,v 1.2 2009/02/23 17:46:55 don Exp $ */
+/* $Header: /repository/projects/libjsonevt/utf16.h,v 1.2 2009-02-23 17:46:55 don Exp $ */
 
 #ifndef UTF16_H
 #define UTF16_H

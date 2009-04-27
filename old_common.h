@@ -22,6 +22,7 @@ Copyright (c) 2007-2009 Don Owens <don@regexguy.com>.  All rights reserved.
 
 #include "DWIW.h"
 #include "libjsonevt/int_defs.h"
+#include "libjsonevt/utf8.h"
 
 #define kCommasAreWhitespace 1
 

@@ -18,7 +18,7 @@
 
 */
 
-/* $Header: /repository/projects/libjsonevt/utf32.c,v 1.3 2009/02/23 17:46:55 don Exp $ */
+/* $Header: /repository/projects/libjsonevt/utf32.c,v 1.3 2009-02-23 17:46:55 don Exp $ */
 
 #include "utf32.h"
 

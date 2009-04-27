@@ -1,3 +1,8 @@
+Version 0.32
+   * Fixed segfault on Solaris 10 (on Sparc) when compiled with Sun
+     Studio.  It was a 64-bit versus 32-bit bug on my part, but
+     apparently GCC catches this and does the right thing.
+
 Version 0.30
    * Added _GNU_SOURCE define to pull in asprintf on some platforms
 

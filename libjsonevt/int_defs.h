@@ -2,7 +2,7 @@
  * Authors: Don
  */
 
-/* $Header: /repository/projects/libjsonevt/int_defs.h,v 1.2 2008/04/17 04:15:29 don Exp $ */
+/* $Header: /repository/projects/libjsonevt/int_defs.h,v 1.2 2008-04-17 04:15:29 don Exp $ */
 
 #ifndef INT_DEFS_H
 #define INT_DEFS_H

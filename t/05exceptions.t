@@ -29,20 +29,20 @@ use Test;
     ok($@);
 
     my $bad_data = { stuff => "\xf5blah" };
-    {
-        local $SIG{__WARN__} = sub {
-            my $msg = shift;
-            if ($msg =~ /malformed\s+utf-8/i) {
-                # don't print the message
-                return;
-            }
-            else {
-                warn $msg;
-                return;
-            }
-        };
+#     {
+#         local $SIG{__WARN__} = sub {
+#             my $msg = shift;
+#             if ($msg =~ /malformed\s+utf-8/i) {
+#                 # don't print the message
+#                 return;
+#             }
+#             else {
+#                 warn $msg;
+#                 return;
+#             }
+#         };
         eval { my $str = $converter->to_json($bad_data); };
-    }
+#     }
 
     ok($@);
     

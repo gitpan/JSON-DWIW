@@ -18,7 +18,10 @@
 
 */
 
-/* $Header: /repository/projects/libjsonevt/utf8.c,v 1.6 2009/02/23 17:46:55 don Exp $ */
+/*
+  $Revision: 268 $
+  $Date: 2009-04-26 18:19:07 -0700 (Sun, 26 Apr 2009) $
+*/
 
 #include "utf8.h"
 

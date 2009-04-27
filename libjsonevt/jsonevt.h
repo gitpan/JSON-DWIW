@@ -18,7 +18,7 @@
 
 */
 
-/* $Header: /repository/projects/libjsonevt/jsonevt.h,v 1.26 2009/02/24 17:35:00 don Exp $ */
+/* $Header: /repository/projects/libjsonevt/jsonevt.h,v 1.28 2009-04-21 06:21:44 don Exp $ */
 
 #ifndef JSONEVT_H
 #define JSONEVT_H
@@ -173,7 +173,7 @@ uint jsonevt_get_byte_pos(json_ctx * ctx);
 
 typedef struct jsonevt_array_struct jsonevt_array;
 typedef struct jsonevt_hash_struct jsonevt_hash;
-typedef struct jsonevt_str_struct jsonevt_str;
+typedef struct jsonevt_string_struct jsonevt_string;
 typedef struct jsonevt_writer_data_struct jsonevt_writer_data;
 typedef struct jsonevt_float_struct jsonevt_float;
 typedef struct jsonevt_int_struct jsonevt_int;
@@ -184,6 +184,7 @@ jsonevt_float *jsonevt_new_float(double val);
 jsonevt_int *jsonevt_new_int(long val);
 jsonevt_uint *jsonevt_new_uint(unsigned long val);
 jsonevt_bool *jsonevt_new_bool(int val);
+jsonevt_string * json_new_string(char * buf, size_t size);
 
 jsonevt_array * jsonevt_new_array();
 void jsonevt_free_array(jsonevt_array * array);
@@ -208,10 +209,13 @@ char * jsonevt_hash_get_string(jsonevt_hash * hash, size_t * length_ptr);
 void jsonevt_hash_disown_buffer(jsonevt_hash *hash);
 int jsonevt_hash_add_data(jsonevt_hash *dest, jsonevt_writer_data *src, char *key, size_t key_len);
 
+/* utility only -- not for normal use */
 char * jsonevt_escape_c_buffer(char *in_buf, size_t length_in, size_t *length_out,
     unsigned long options);
 
 char * jsonevt_get_data_string(jsonevt_writer_data *ctx, size_t *length_ptr);
+
+int jsonevt_do_unit_tests();
 
 JSON_DO_CPLUSPLUS_WRAP_END
 

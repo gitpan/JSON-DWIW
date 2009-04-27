@@ -18,7 +18,7 @@
 
 */
 
-/* $Header: /repository/projects/libjsonevt/jsonevt.c,v 1.51 2009/02/24 06:22:21 don Exp $ */
+/* $Header: /repository/projects/libjsonevt/jsonevt.c,v 1.51 2009-02-24 06:22:21 don Exp $ */
 
 /*
 #if defined(__WIN32) || defined(WIN32) || defined(_WIN32)
@@ -1002,7 +1002,7 @@ parse_hash(json_context * ctx, uint level, uint flags) {
 
         if (this_char != ':') {
             JSON_DEBUG("parse error");
-            SET_ERROR(ctx, "syntax error: bad object (missing ':')", this_char);
+            SET_ERROR(ctx, "syntax error: bad object (missing ':')");
             return 0;
         }
 
