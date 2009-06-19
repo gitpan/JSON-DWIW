@@ -165,7 +165,7 @@ require DynaLoader;
 Exporter::export_ok_tags('all');
 
 # change in POD as well!
-our $VERSION = '0.32';
+our $VERSION = '0.33';
 
 JSON::DWIW->bootstrap($VERSION);
 
@@ -486,29 +486,6 @@ sub from_json {
     }
 
     return wantarray ? ($data, $JSON::DWIW::LastError) : $data;
-        
-
-#     my $error_msg;
-#     my $error_data;
-#     my $stats_data = { };
-#     my $data = _xs_from_json($self, $json, \$error_msg, \$error_data, $stats_data);
-
-#     if ($stats_data) {
-#         $JSON::DWIW::Last_Stats = $stats_data;
-#         $self->{last_stats} = $stats_data;
-#     }
-
-#     $JSON::DWIW::LastError = $error_msg;
-#     $self->{last_error} = $error_msg;
-
-#     $JSON::DWIW::LastErrorData = $error_data;
-#     $self->{last_error_data} = $error_data;
-    
-#     if (defined($error_msg) and $self->{use_exceptions}) {
-#         die $error_msg;
-#     }
-
-#     return wantarray ? ($data, $error_msg) : $data;
 }
 
 {
@@ -572,50 +549,6 @@ sub from_json_file {
     }
 
     return wantarray ? ($data, $JSON::DWIW::LastError) : $data;
-
-
-#     my $in_fh;
-#     unless (open($in_fh, '<', $file)) {
-#         my $msg = "JSON::DWIW v$VERSION - couldn't open input file $file";
-#         $JSON::DWIW::LastError = $msg;
-#         $self->{last_error} = $msg;
-
-#         if ($self->{use_exceptions}) {
-#             die $msg;
-#         } else {
-#             return wantarray ? ( undef, $msg ) : undef;
-#         }
-#     }
-
-#     my $json;
-#     {
-#         local($/);
-#         $json = <$in_fh>;
-#     }
-#     close $in_fh;
-
-#     my $error_msg;
-#     my $error_data;
-#     my $stats_data = { };
-#     my $data = _xs_from_json($self, $json, \$error_msg, \$error_data, $stats_data);
-    
-#     if ($stats_data) {
-#         $JSON::DWIW::Last_Stats = $stats_data;
-#         $self->{last_stats} = $stats_data;
-#     }
-
-#     $JSON::DWIW::LastError = $error_msg;
-#     $self->{last_error} = $error_msg;
-
-#     $JSON::DWIW::LastErrorData = $error_data;
-#     $self->{last_error_data} = $error_data;
-
-    
-#     if (defined($error_msg) and $self->{use_exceptions}) {
-#         die $error_msg;
-#     }
-
-#     return wantarray ? ($data, $error_msg) : $data;
 }
 
 =pod
@@ -668,6 +601,10 @@ sub to_json_file {
         }
     }
 
+    if ($] >= 5.008) {
+        binmode($out_fh, 'utf8');
+    }
+
     my $error_msg;
     my $error_data;
     my $stats_data = { };
@@ -696,10 +633,6 @@ sub to_json_file {
     print $out_fh $str;
     close $out_fh;
 
-#     if (_has_mmap()) {
-#         print "*** has mmap\n";
-#     }
-    
     return wantarray ? (1, $error_msg) : 1;
 }
 

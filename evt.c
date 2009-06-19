@@ -65,7 +65,9 @@ extern "C" {
 #include "jsonevt.h"
 #include "evt.h"
 
+#ifndef DO_DEBUG
 #define DO_DEBUG 0
+#endif
 
 #if DO_DEBUG && defined(JSONEVT_HAVE_FULL_VARIADIC_MACROS)
 #define LOG_DEBUG(...) printf("%s (%d) - ", __FILE__, __LINE__); printf(__VA_ARGS__); \
@@ -962,6 +964,9 @@ handle_parse_result(int result, jsonevt_ctx * ctx, perl_wrapper_ctx * wctx) {
         sv_setsv(tmp_sv, &PL_sv_undef);
 
     }
+
+    /* fix memory leak -- the stack was allocated in init_cbs() */
+    free(wctx->cbd.stack); wctx->cbd.stack = NULL;
 
     jsonevt_reset_ctx(ctx);
 

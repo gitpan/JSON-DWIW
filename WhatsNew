@@ -1,3 +1,7 @@
+Version 0.33
+   * Fixed memory leak -- the stack was getting allocated in
+     init_cbs(), but never deallocated.
+
 Version 0.32
    * Fixed segfault on Solaris 10 (on Sparc) when compiled with Sun
      Studio.  It was a 64-bit versus 32-bit bug on my part, but

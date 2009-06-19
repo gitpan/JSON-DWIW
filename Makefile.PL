@@ -112,6 +112,7 @@ sub MY::post_constants {
 
     if ($ENV{DEBUG_JSON_DWIW}) {
         $optimize .= ' -DDO_DEBUG';
+        $optimize .= ' -g' unless $optimize =~ /-g/;
     }
 
     push @updates, "OPTIMIZE = $optimize";
