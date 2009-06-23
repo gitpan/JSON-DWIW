@@ -13,6 +13,8 @@ Copyright (c) 2007-2009 Don Owens <don@regexguy.com>.  All rights reserved.
  PURPOSE.
 */
 
+/* $Revision: 463 $ */
+
 /* #define PERL_NO_GET_CONTEXT */
 
 #include "DWIW.h"
@@ -175,7 +177,6 @@ has_jsonevt() {
 
 static SV *
 deserialize_json(SV * self, char * data_str, STRLEN data_str_len) {
-#ifdef HAVE_JSONEVT
     SV * val;
 
     UNLESS (data_str) {
@@ -188,16 +189,10 @@ deserialize_json(SV * self, char * data_str, STRLEN data_str_len) {
         val = newSVpv("", 0);
         return val;
     }
-
     
     val = do_json_parse_buf(self, data_str, data_str_len);
 
     return (SV *)val;
-#else
-    croak("the deserialize function is not yet available on this platform");
-
-    return &PL_sv_undef;
-#endif
 }
 
 static SV *
@@ -1246,6 +1241,13 @@ _xs_from_json(SV * self, SV * data, SV * error_msg_ref, SV * error_data_ref, SV 
     RETVAL
 
 =cut
+
+SV *
+do_dummy_parse(SV *self, SV *str)
+  CODE:
+    RETVAL = do_json_dummy_parse(self, str);
+OUTPUT:
+    RETVAL
 
 SV *
 has_deserialize(...)

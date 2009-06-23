@@ -10,6 +10,8 @@ warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
 PURPOSE.
 */
 
+/* $Revision: 463 $ */
+
 /* TODO before release:
    
    - add benchmark prog to distribution
@@ -397,8 +399,12 @@ insert_entry(parse_callback_ctx * ctx, SV * val) {
         /* scalar -- must be a hash key, so insert the val */
         s = cur_entry->data;
         cur_entry = (parse_cb_stack_entry *)(ctx->stack + level - 1);
-        
+
+        /* note that, if we didn't create the has ourselves, we would
+           have to check the return value and decrement the ref count
+           of val if NULL is returned */
         IGNORE_RV(hv_store_ent((HV *)SvRV(cur_entry->data), s, val, 0));
+        SvREFCNT_dec(s);
         POP_STACK(ctx);
     }
     
@@ -408,6 +414,8 @@ insert_entry(parse_callback_ctx * ctx, SV * val) {
 static int
 push_stack_val(parse_callback_ctx * ctx, SV * val) {
     int cur_level = CUR_STACK_LEVEL(ctx);
+
+
     /* parse_cb_stack_entry * cur_entry = CUR_STACK_ENTRY(ctx); */
     parse_cb_stack_entry * new_entry;
     int is_hash_or_array = 0;
@@ -427,7 +435,6 @@ push_stack_val(parse_callback_ctx * ctx, SV * val) {
 
     if (is_hash_or_array) {
         if (cur_level >= 0) {
-            /* av_push((AV *)SvRV(cur_entry->data), val); */
             SETUP_TRACE;
             insert_entry(ctx, val);
         }
@@ -446,53 +453,9 @@ push_stack_val(parse_callback_ctx * ctx, SV * val) {
             new_entry = PUSH_STACK_ENTRY(ctx);
             new_entry->data = val;
         }
-        /* av_push((AV *)SvRV(cur_entry->data), val); */
     }
 
     return 1;
-
-#if 0
-    switch (type) {
-      case TYPE_HASH_ENTRY:
-          new_entry = PUSH_STACK_ENTRY(ctx);
-          new_entry->type = TYPE_HASH_ENTRY_KEY;
-          new_entry->ref = NULL;
-          new_entry->data = val;
-          LOG_DEBUG("adding hash key");
-          break;
-
-      case TYPE_HASH_ENTRY_KEY:
-          new_entry = PUSH_STACK_ENTRY(ctx);
-          new_entry->type = TYPE_HASH_ENTRY_VAL;
-          new_entry->ref = NULL;
-          new_entry->data = val;
-          LOG_DEBUG("adding hash val");
-          break;
-
-      case TYPE_ARRAY_ELEMENT:
-          POP_STACK(ctx);
-          cur_entry = PUSH_STACK_ENTRY(ctx);
-          cur_entry->type = TYPE_ARRAY_ELEMENT;
-          
-          if (SvOK(val)) {
-              cur_entry->ref = val;
-              cur_entry->data = SvRV(val);
-          } else {
-              cur_entry->ref = NULL;
-              cur_entry->data = val;
-          }
-          LOG_DEBUG("adding array element");
-          break;
-
-      default:
-          LOG_DEBUG("reached default case in push_stack_val()");
-          return 0;
-          break;
-    }
-
-    return 1;
-
-#endif
 }
 
 static int
@@ -703,9 +666,6 @@ hash_entry_begin_callback(void * cb_data, uint flags, uint level) {
 
 static int
 hash_entry_end_callback(void * cb_data, uint flags, uint level) {
-    /*
-    */
-
     LOG_DEBUG("\nin hash_entry_end callback at level %u, stack_level %d\n", level, ctx->stack_level);
     return 0;
 }
@@ -759,10 +719,8 @@ sv_str_eq(SV * sv_val, const char * c_buf, STRLEN c_buf_len) {
 }
 
 static int
-setup_options(jsonevt_ctx * json_ctx, parse_callback_ctx * ctx, SV * self_sv) {
-    SV ** ptr;
-    HV * self_hash;
-    IV num_keys = 0;
+setup_options(jsonevt_ctx * json_ctx, parse_callback_ctx *
+ctx, SV * self_sv) { SV ** ptr; HV * self_hash; IV num_keys = 0;
 
     UNLESS (self_sv) {
         return 0;
@@ -808,9 +766,34 @@ setup_options(jsonevt_ctx * json_ctx, parse_callback_ctx * ctx, SV * self_sv) {
     return 1;
 }
 
+SV *
+do_json_dummy_parse(SV * self_sv, SV * json_str_sv) {
+    SV *rv = Nullsv;
+    jsonevt_ctx *ctx = jsonevt_new_ctx();
+    char *buf;
+    STRLEN buf_len;
+
+    buf = SvPV(json_str_sv, buf_len);
+    if (jsonevt_parse(ctx, buf, buf_len)) {
+        /* success */
+        rv = &PL_sv_yes;
+    }
+    else {
+        rv = &PL_sv_undef;
+    }
+
+    jsonevt_free_ctx(ctx);
+
+    return rv;
+}
+
 static jsonevt_ctx *
 init_cbs(perl_wrapper_ctx * pwctx, SV * self_sv) {
-    static jsonevt_ctx * ctx = (jsonevt_ctx *)0;
+    /* static jsonevt_ctx * ctx = (jsonevt_ctx *)0; */
+
+    /* FIXME: need to find a way to reuse this without making it a static var */
+    jsonevt_ctx * ctx = (jsonevt_ctx *)0;
+
     /* jsonevt_ctx * ctx = jsonevt_new_ctx(); */
     parse_callback_ctx * cb_data;
     /*
@@ -829,6 +812,8 @@ init_cbs(perl_wrapper_ctx * pwctx, SV * self_sv) {
 
     UNLESS (ctx) {
         ctx = jsonevt_new_ctx();
+
+        LOG_DEBUG("creating ctx %#08"UVxf, PTR2UV(ctx));
 
         jsonevt_set_string_cb(ctx, string_callback);
         jsonevt_set_number_cb(ctx, number_callback);
@@ -962,13 +947,15 @@ handle_parse_result(int result, jsonevt_ctx * ctx, perl_wrapper_ctx * wctx) {
 
         tmp_sv = get_sv("JSON::DWIW::LastError", 1);
         sv_setsv(tmp_sv, &PL_sv_undef);
-
     }
 
     /* fix memory leak -- the stack was allocated in init_cbs() */
     free(wctx->cbd.stack); wctx->cbd.stack = NULL;
 
-    jsonevt_reset_ctx(ctx);
+    /* change to json_reset_ctx(ctx) once we start reusing the ctx from libjsonevt */
+    /* jsonevt_reset_ctx(ctx); */
+    LOG_DEBUG("freeing ctx %#08"UVxf, PTR2UV(ctx));
+    jsonevt_free_ctx(ctx);
 
     if (throw_exception) {
         tmp_sv = get_sv("@", TRUE);
@@ -1006,9 +993,7 @@ do_json_parse_buf(SV * self_sv, char * buf, STRLEN buf_len) {
     ctx = init_cbs(&wctx, self_sv);
 
     return handle_parse_result(jsonevt_parse(ctx, buf, buf_len), ctx, &wctx);
-
 }
-
 
 SV *
 do_json_parse(SV * self_sv, SV * json_str_sv) {

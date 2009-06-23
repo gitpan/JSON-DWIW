@@ -14,6 +14,8 @@
 # warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
 # PURPOSE.
 
+# $Revision: 463 $
+
 =pod
 
 =head1 NAME
@@ -165,7 +167,7 @@ require DynaLoader;
 Exporter::export_ok_tags('all');
 
 # change in POD as well!
-our $VERSION = '0.33';
+our $VERSION = '0.34';
 
 JSON::DWIW->bootstrap($VERSION);
 
@@ -397,6 +399,24 @@ sub serialize {
     $JSON::DWIW::LastErrorData = $error_data;
 
     return $str;
+}
+
+# total process size in pages
+sub get_proc_size {
+    if ($^O eq 'linux') {
+        my $statm_path = "/proc/$$/statm";
+        if (-e $statm_path) {
+            open(my $in_fh, '<', $statm_path) or return undef;
+            my $statm = <$in_fh>;
+            close $in_fh;
+            
+            my @fields = split /\s+/, $statm;
+            
+            return $fields[0];
+        }
+    }
+
+    return undef;
 }
 
 =pod
