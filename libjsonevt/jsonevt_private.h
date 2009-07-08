@@ -26,6 +26,7 @@
 #include "jsonevt.h"
 #include "utf8.h"
 #include "print.h"
+#include "jsonevt_utils.h"
 
 JSON_DO_CPLUSPLUS_WRAP_BEGIN
 
@@ -259,9 +260,8 @@ int js_asprintf(char ** ret, const char * fmt, ...);
                                   JSON_DEBUG("ALLOC_NEW_BUF() called for size %u, returning %p", \
                                       size, (s)->buf);
 
-#define DO_REALLOC(buf, size) (buf ? realloc(buf, size) : malloc(size))
 #define REALLOC_BUF(s, size) if (USING_STACK_BUF(s)) { switch_from_static_buf(s, size); } else { \
-        JSON_DEBUG("reallocing %p", (s)->buf); (s)->buf = (char *)DO_REALLOC((void *)((s)->buf), size); (s)->len = size; }
+        JSON_DEBUG("reallocing %p", (s)->buf); JSONEVT_RENEW((s)->buf, size, char); (s)->len = size; }
 
 #define SWITCH_FROM_STATIC(s) JSON_DEBUG("SWITCH_FROM_STATIC() called"); if (USING_ORIG_BUF(s)) { switch_from_static_buf(s, 0); }
 

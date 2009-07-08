@@ -18,7 +18,7 @@
 
 */
 
-/* $Header: /repository/projects/libjsonevt/jsonevt.h,v 1.28 2009-04-21 06:21:44 don Exp $ */
+/* $Revision$ */
 
 #ifndef JSONEVT_H
 #define JSONEVT_H

@@ -205,7 +205,7 @@ vset_error(json_context * ctx, char * file, uint line, char * fmt, va_list *ap) 
 
     msg_len = js_vasprintf(&msg, fmt, ap);
 
-    error = (char *)malloc(loc_len + msg_len + 1);
+    JSONEVT_NEW(error, loc_len + msg_len + 1, char)
 	MEM_CPY(error, loc, loc_len);
     MEM_CPY(&error[loc_len], msg, msg_len);
     error[loc_len + msg_len] = '\x00';
@@ -217,8 +217,8 @@ vset_error(json_context * ctx, char * file, uint line, char * fmt, va_list *ap) 
     ctx->ext_ctx->error_byte_pos = CUR_POS(ctx);
     ctx->ext_ctx->error_char_pos = CUR_CHAR_POS(ctx);
 
-    free(msg);
-    free(loc);
+    JSONEVT_FREE_MEM(msg);
+    JSONEVT_FREE_MEM(loc);
 
     return error;
 }
@@ -1099,7 +1099,10 @@ parse_value(json_context * ctx, uint level, uint flags) {
 
 jsonevt_ctx *
 jsonevt_new_ctx() {
-    jsonevt_ctx * ctx = (jsonevt_ctx *)malloc(sizeof(jsonevt_ctx));
+    jsonevt_ctx *ctx;
+    /* JSONEVT_NEW(ctx, sizeof(jsonevt_ctx), jsonevt_ctx); */
+    /* FIXME: - this may be where the "invalid pointer" (rt.cpan.org #47344) is coming from */
+    JSONEVT_NEW(ctx, 1, jsonevt_ctx);
     ZERO_MEM((void *)ctx, sizeof(jsonevt_ctx));
 
     JSON_DEBUG("allocated new jsonevt_ctx %p", ctx);
@@ -1111,12 +1114,12 @@ void
 jsonevt_free_ctx(jsonevt_ctx * ext_ctx) {
     if (ext_ctx) {
         if (ext_ctx->error) {
-            free(ext_ctx->error);
+            JSONEVT_FREE_MEM(ext_ctx->error);
             ext_ctx->error = NULL;
         }
 
         JSON_DEBUG("deallocating jsonevt_ctx %p", ext_ctx);        
-        free(ext_ctx);
+        JSONEVT_FREE_MEM(ext_ctx);
         JSON_DEBUG("deallocated jsonevt_ctx %p", ext_ctx);
     }
 }
@@ -1167,7 +1170,7 @@ jsonevt_reset_ctx(jsonevt_ctx * ctx) {
     bad_char_policy = ctx->bad_char_policy;
 
     if (ctx->error) {
-        free(ctx->error);
+        JSONEVT_FREE_MEM(ctx->error);
         ctx->error = NULL;
     }
 
@@ -1650,12 +1653,12 @@ jsonevt_parse_file(jsonevt_ctx * ext_ctx, char * file) {
     file_size = ftell(fp);
     fseek(fp, 0, SEEK_SET);
 
-    buf = (char *)malloc(file_size);
+    JSONEVT_NEW(buf, file_size, char);
 
     /* FIXME: check for int overflow in file_size (size_t vs off_t) */
     amtread = fread((void *)buf, 1, file_size, fp);
     if (amtread != (size_t)file_size) {
-        free(buf);
+        JSONEVT_FREE_MEM(buf);
         fclose(fp);
         JSON_DEBUG("got short read while slurping input file %s", file);
         SET_ERROR(&ctx, "got short read while slurping input file %s", file);
@@ -1676,10 +1679,38 @@ jsonevt_parse_file(jsonevt_ctx * ext_ctx, char * file) {
     close(fd);
 
 #else
-    free(buf);
+    JSONEVT_FREE_MEM(buf);
     fclose(fp);
 #endif
 
     return rv;
 }
 
+void * _jsonevt_renew_with_log(void **ptr, size_t size, const char *var_name, unsigned int line_num,
+    const char *func_name, const char *file_name) {
+
+    fprintf(stderr, "realloc memory \"%s\" in %s, %s (%d) - %#"JSONEVT_PTR_xf" -> ", var_name,
+        func_name, file_name, line_num, JSONEVT_PTR2UL(*ptr));
+    fflush(stderr);
+    if (*ptr) {
+        *ptr = realloc(*ptr, size);
+    }
+    else {
+        *ptr = malloc(size);
+    }
+    fprintf(stderr, "p = %#"JSONEVT_PTR_xf"\n", JSONEVT_PTR2UL(*ptr));
+    fflush(stderr);
+
+    return *ptr;
+}
+
+void * _jsonevt_renew(void **ptr, size_t size) {
+    if (*ptr) {
+        *ptr = realloc(*ptr, size);
+    }
+    else {
+        *ptr = malloc(size);
+    }
+
+    return *ptr;
+}

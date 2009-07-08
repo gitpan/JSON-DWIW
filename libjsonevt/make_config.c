@@ -113,10 +113,11 @@ sync_header(FILE *cur_fp, const char *new_file) {
     // long cur_pos = ftell(cur_fp);
     char buf[1024];
     int amt_read;
+    int amt_w = 0;
 
     fseek(cur_fp, 0, 0);
     while ( (amt_read = fread(buf, 1, 1024, cur_fp)) > 0 ) {
-        fwrite(buf, 1, amt_read, fp);
+        amt_w = fwrite(buf, 1, amt_read, fp);
     }
     
     print_foot(fp);
@@ -221,6 +222,7 @@ main(int argc, char **argv) {
     char **exec_argv;
     int i;
     int first_arg_count = 0;
+    long unsigned int size = 0;
 
     test_rec header_list[ ] = {
         { "stdint.h", "STDINT_H" },
@@ -334,6 +336,13 @@ main(int argc, char **argv) {
 
         hp++;
     }
+
+    
+    size = sizeof(unsigned long);
+    fprintf(conf_fh, "#define JSONEVT_ULONG_SIZE %lu\n", size);
+
+    size = sizeof(unsigned int);
+    fprintf(conf_fh, "#define JSONEVT_UINT_SIZE %lu\n", size);
 
     print_foot(conf_fh);
 

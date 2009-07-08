@@ -14,6 +14,7 @@
 
 #include "jsonevt_config.h"
 #include "print.h"
+#include "jsonevt_utils.h"
 
 #define UNLESS(stuff) if (! stuff)
 
@@ -44,7 +45,7 @@ js_vasprintf(char **ret, const char *fmt, va_list *ap_ptr) {
         rv = 4095;
     }
 
-    *ret = (char *)malloc(rv + 1);
+    JSONEVT_NEW(*ret, rv + 1, char);
     UNLESS (*ret) {
         return -1;
     }

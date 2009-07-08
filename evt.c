@@ -10,7 +10,7 @@ warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
 PURPOSE.
 */
 
-/* $Revision: 463 $ */
+/* $Revision: 465 $ */
 
 /* TODO before release:
    
@@ -119,7 +119,11 @@ typedef struct {
     parse_callback_ctx cbd;
 } perl_wrapper_ctx;
 
-#define GROW_STACK(ctx) ( ((ctx)->stack_size <<= 1), Renew((ctx)->stack, (ctx)->stack_size, parse_cb_stack_entry))
+#define GROW_STACK(ctx) ( ((ctx)->stack_size <<= 1), JSONEVT_RENEW_RV((ctx)->stack, (ctx)->stack_size, parse_cb_stack_entry))
+
+
+/* #define GROW_STACK(ctx) ( ((ctx)->stack_size <<= 1), Renew((ctx)->stack, (ctx)->stack_size, parse_cb_stack_entry))
+*/
 
 #define ENSURE_STACK(ctx) ( (ctx)->stack_level >= (ctx)->stack_size - 1 ? GROW_STACK(ctx) : 0 )
 #define CUR_STACK_LEVEL(ctx) ((ctx)->stack_level)
@@ -841,7 +845,7 @@ init_cbs(perl_wrapper_ctx * pwctx, SV * self_sv) {
 
     cb_data->stack_size = 64;
 
-    New(0, cb_data->stack, cb_data->stack_size, parse_cb_stack_entry);
+    JSONEVT_NEW(cb_data->stack, cb_data->stack_size, parse_cb_stack_entry);
 
     cb_data->stack_level = -1;
     memzero(cb_data->stack, cb_data->stack_size * sizeof(parse_cb_stack_entry));
@@ -950,7 +954,7 @@ handle_parse_result(int result, jsonevt_ctx * ctx, perl_wrapper_ctx * wctx) {
     }
 
     /* fix memory leak -- the stack was allocated in init_cbs() */
-    free(wctx->cbd.stack); wctx->cbd.stack = NULL;
+    JSONEVT_FREE_MEM(wctx->cbd.stack); wctx->cbd.stack = NULL;
 
     /* change to json_reset_ctx(ctx) once we start reusing the ctx from libjsonevt */
     /* jsonevt_reset_ctx(ctx); */
@@ -962,7 +966,7 @@ handle_parse_result(int result, jsonevt_ctx * ctx, perl_wrapper_ctx * wctx) {
         sv_setsv(tmp_sv, error_msg);
         SvREFCNT_dec(error_msg);
 
-        croak(Nullch);
+        croak(Nullch); /* FIXME: check this -- gives warnings on 64-bit fedora 11 cuz passing null */
     }
 
     SvREFCNT_dec(error_msg);

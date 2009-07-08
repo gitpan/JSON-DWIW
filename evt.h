@@ -17,6 +17,7 @@ Copyright (c) 2007-2009 Don Owens <don@regexguy.com>.  All rights reserved.
 #define EVT_H
 
 #include "jsonevt.h"
+#include "jsonevt_utils.h"
 
 SV *
 do_json_parse_buf(SV * self_sv, char * buf, STRLEN buf_len);
