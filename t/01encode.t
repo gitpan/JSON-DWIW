@@ -4,17 +4,15 @@
 # Authors: don
 
 use strict;
-use Test;
+use Test::More tests => 16;
 
 # main
 {
-    BEGIN { plan tests => 14 }
+    # BEGIN { plan tests => 15 }
 
     use JSON::DWIW;
 
     my $data;
-
-    #    my $expected_str = '{"var1":"val1","var2":["first_element",{"sub_element":"sub_val","sub_element2":"sub_val2"}],"var3":"val3"}';
 
     my $expected_str1 = '{"var1":"val1","var2":["first_element",{"sub_element":"sub_val","sub_element2":"sub_val2"}]}';
     my $expected_str2 = '{"var2":["first_element",{"sub_element":"sub_val","sub_element2":"sub_val2"}],"var1":"val1"}';
@@ -23,7 +21,6 @@ use Test;
 
     my $json_obj = JSON::DWIW->new;
     my $json_str;
-    # print STDERR "\n" . $json_str . "\n\n";
 
     my $expected_str;
 
@@ -31,9 +28,14 @@ use Test;
     $json_str = $json_obj->to_json($data);
     ok($json_str eq '"stuff"');
 
-    $data = "stu\nff";
+    $data = "stu\x0aff";
     $json_str = $json_obj->to_json($data);
     ok($json_str eq '"stu\nff"');
+
+    $data = "stuff\x0afoo\x0dbar\x08duh\x0ctab\x09solidus/";
+    $json_str = $json_obj->to_json($data, { minimal_escaping => 1 });
+    ok($json_str eq qq{"stuff\x0afoo\x0dbar\x08duh\x0ctab\x09solidus/"}, 'minimal escaping');
+
 
     $data = [ 1, 2, 3 ];
     $expected_str = '[1,2,3]';
@@ -90,6 +92,13 @@ use Test;
     $json_str = $json_obj->to_json($data);
     ok($json_str eq '{"body":"foo blarg <a href=\"http:\/\/example.com\/?id=386\">adfasdf<\/a>"}');
 
+    $data = {
+             body => 'foo blarg <a href="http://example.com/?id=386">adfasdf</a>',
+            };
+    $json_str = JSON::DWIW->to_json($data, { bare_solidus => 1 });
+    ok($json_str eq '{"body":"foo blarg <a href=\"http://example.com/?id=386\">adfasdf</a>"}',
+      'bare_solidus');
+
     $data = { stuff => "Don's test string" };
     $json_str = $json_obj->to_json($data);
     ok($json_str eq q{{"stuff":"Don's test string"}});
@@ -98,7 +107,6 @@ use Test;
     $json_str = $json_obj->to_json($data);
     $json_str = $json_obj->to_json({ test => $json_str });
     ok($json_str eq '{"test":"{\\"stuff\\":\\"http:\\\\\\/\\\\\\/example.com\\\\\\/\\"}"}');
-    
 
 }
 

@@ -32,6 +32,8 @@ Copyright (c) 2007-2009 Don Owens <don@regexguy.com>.  All rights reserved.
 #define kPrettyPrint (1 << 2)
 #define kEscapeMultiByte (1 << 3)
 #define kConvertBool (1 << 4)
+#define kBareSolidus (1 << 5)
+#define kMinimalEscaping (1 << 6)
 
 #define kBadCharError 0
 #define kBadCharConvert 1

@@ -131,11 +131,12 @@ my $args = {
             AUTHOR => 'DON OWENS <don@regexguy.com>',
             PM => { 'lib/JSON/DWIW.pm' => '$(INST_LIBDIR)/DWIW.pm',
                     'lib/JSON/DWIW/Boolean.pm' => '$(INST_LIBDIR)/DWIW/Boolean.pm',
+                    'lib/JSON/DWIW/Changes.pm' => '$(INST_LIBDIR)/DWIW/Changes.pm',
                   },
             dist => { COMPRESS => 'gzip -9f', SUFFIX => 'gz' },
             DIR => [],
             EXE_FILES => [],
-            PREREQ_PM => {
+            PREREQ_PM => { 'Test::More' => 0,
                          },
             clean => { FILES => $clean_str },
             # OPTIMIZE => '-Wall -O3 -fno-non-lvalue-assign -g',

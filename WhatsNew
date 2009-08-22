@@ -1,3 +1,7 @@
+Version 0.36 (Sat 2009-08-22)
+   * Added ascii, bare_solidus, and minimal_escaping options.
+   * Began to use Test::More for some of the unit tests
+
 Version 0.35
    * Apparent fix for [rt.cpan.org #47344].
 

@@ -147,6 +147,9 @@ METHODS
     If set to a true value, escape all multi-byte characters (e.g., \u00e9)
     when converting to JSON.
 
+   ascii
+    Synonym for escape_multi_byte
+
    pretty
     Add white space to the output when calling to_json() to make the output
     easier for humans to read.
@@ -159,6 +162,15 @@ METHODS
     evaluates to false in a boolean context. These objects are recognized by
     the to_json() method, so they will be output as "true" or "false"
     instead of "1" or "0".
+
+   bare_solidus
+    Don't escape solidus characters ("/") in strings. The output is still
+    legal JSON with this option turned on.
+
+   minimal_escaping
+    Only do required escaping in strings (solidus and quote). Tabs,
+    newlines, backspaces, etc., will not be escaped with this optioned
+    turned on (but the output will still be valid JSON).
 
   to_json
     Returns the JSON representation of $data (arbitrary datastructure). See
@@ -341,6 +353,8 @@ ACKNOWLEDGEMENTS
 
     Thanks to Mark Phillips for helping with a bug under Solaris on Sparc.
 
+    Thanks to Josh for helping debug [rt.cpan.org #47344].
+
 LICENSE AND COPYRIGHT
     Copyright (c) 2007-2009 Don Owens <don@regexguy.com>. All rights
     reserved.
@@ -361,5 +375,5 @@ SEE ALSO
      L<JSON::Syck> (included in L<YAML::Syck>)
 
 VERSION
-    0.32
+    0.36
 

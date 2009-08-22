@@ -13,7 +13,7 @@ Copyright (c) 2007-2009 Don Owens <don@regexguy.com>.  All rights reserved.
  PURPOSE.
 */
 
-/* $Revision: 463 $ */
+/* $Revision: 1234 $ */
 
 /* #define PERL_NO_GET_CONTEXT */
 
@@ -276,7 +276,6 @@ escape_json_str(self_context * self, SV * sv_str) {
     uint32_t len = 0;
     U8 tmp_char = 0x00;
     SV * rv;
-    int check_unicode = 1; /* FIXME: get rid of this */
     UV this_uv = 0;
     U8 unicode_bytes[5];
     int escape_unicode = 0;
@@ -309,12 +308,8 @@ escape_json_str(self_context * self, SV * sv_str) {
     /* get a better estimate of needed buffer size */
     needed_len = data_str_len * 2 + 2;
 
-    /* check_unicode = SvUTF8(sv_str); */
-
     rv = newSV(needed_len);
-    if (check_unicode) {
-        SvUTF8_on(rv);
-    }
+    SvUTF8_on(rv);
     sv_setpvn(rv, "\"", 1);
 
     /* printf("\tencoding string %s\n", data_str); */
@@ -380,27 +375,58 @@ escape_json_str(self_context * self, SV * sv_str) {
               */
 
           case '/':
-              sv_catpvn(rv, "\\/", 2);
+              if (self->flags & (kBareSolidus | kMinimalEscaping)) {
+                  sv_catpvn(rv, "/", 1);
+              }
+              else {
+                  sv_catpvn(rv, "\\/", 2);
+              }
+
               break;
               
           case 0x08:
-              sv_catpvn(rv, "\\b", 2);
+              if (self->flags & kMinimalEscaping) {
+                  sv_catpvn(rv, "\x08", 1);
+              }
+              else {
+                  sv_catpvn(rv, "\\b", 2);
+              }
               break;
               
           case 0x0c:
-              sv_catpvn(rv, "\\f", 2);
+              if (self->flags & kMinimalEscaping) {
+                  sv_catpvn(rv, "\x0c", 1);
+              }
+              else {
+                  sv_catpvn(rv, "\\f", 2);
+              }
               break;
               
           case 0x0a:
-              sv_catpvn(rv, "\\n", 2);
+              if (self->flags & kMinimalEscaping) {
+                  sv_catpvn(rv, "\x0a", 1);
+              }
+              else {
+                  sv_catpvn(rv, "\\n", 2);
+              }
               break;
               
           case 0x0d:
-              sv_catpvn(rv, "\\r", 2);
+              if (self->flags & kMinimalEscaping) {
+                  sv_catpvn(rv, "\x0d", 1);
+              }
+              else {
+                  sv_catpvn(rv, "\\r", 2);
+              }
               break;
               
           case 0x09:
-              sv_catpvn(rv, "\\t", 2);
+              if (self->flags & kMinimalEscaping) {
+                  sv_catpvn(rv, "\x09", 1);
+              }
+              else {
+                  sv_catpvn(rv, "\\t", 2);
+              }
               break;
               
           default:
@@ -410,29 +436,19 @@ escape_json_str(self_context * self, SV * sv_str) {
               else if (escape_unicode && ! UTF8_IS_INVARIANT(this_uv)) {
                   sv_catpvf(rv, "\\u%04"UVxf, this_uv);
               }
-              else if (check_unicode && !pass_bad_char) {
+              else if (!pass_bad_char) {
                   len32 = common_utf8_unicode_to_bytes((uint32_t)this_uv, (uint8_t *)unicode_bytes);
                   if (len32 > 1) {
                       SvUTF8_on(rv);
                   }
                   sv_catpvn(rv, (char *)unicode_bytes, len32);
-
-                  /*
-                  tmp_str = convert_uv_to_utf8(unicode_bytes, this_uv);
-                  if (PTR2UV(tmp_str) - PTR2UV(unicode_bytes) > 1) {
-                      UNLESS (SvUTF8(rv)) {
-                          SvUTF8_on(rv);
-                      }
-                  }
-                  sv_catpvn(rv, (char *)unicode_bytes, PTR2UV(tmp_str) - PTR2UV(unicode_bytes));
-                  */
               }
               else {
                   tmp_char = (U8)this_uv;
                   sv_catpvn(rv, (char *)&tmp_char, 1);
               }
-              break;
-              
+
+              break;              
         }
     }
     
@@ -582,9 +598,24 @@ setup_self_context(SV *self_sv, self_context *self) {
         self->flags |= kEscapeMultiByte;
     }
 
+    ptr = hv_fetch((HV *)self_hash, "ascii", 5, 0);
+    if (ptr && SvTRUE(*ptr)) {
+        self->flags |= kEscapeMultiByte;
+    }
+
     ptr = hv_fetch((HV *)self_hash, "detect_circular_refs", 20, 0);
     if (ptr && SvTRUE(*ptr)) {
         self->ref_track = newHV();
+    }
+
+    ptr = hv_fetch((HV *)self_hash, "bare_solidus", 12, 0);
+    if (ptr && SvTRUE(*ptr)) {
+        self->flags |= kBareSolidus;
+    }
+
+    ptr = hv_fetch((HV *)self_hash, "minimal_escaping", 16, 0);
+    if (ptr && SvTRUE(*ptr)) {
+        self->flags |= kMinimalEscaping;
     }
 
 
@@ -625,6 +656,10 @@ setup_self_context(SV *self_sv, self_context *self) {
 
         if (self->flags & kEscapeMultiByte) {
             fprintf(stderr, "Escape Multi-Byte Characters\n");
+        }
+
+        if (self-flags & kBareSolidus) {
+            fprintf(stderr, "Don't escape solidus ('/')\n");
         }
         
         fprintf(stderr, "\n");

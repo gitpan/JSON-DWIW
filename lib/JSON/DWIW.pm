@@ -14,7 +14,7 @@
 # warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
 # PURPOSE.
 
-# $Revision: 476 $
+# $Revision: 1261 $
 
 =pod
 
@@ -167,7 +167,7 @@ require DynaLoader;
 Exporter::export_ok_tags('all');
 
 # change in POD as well!
-our $VERSION = '0.35';
+our $VERSION = '0.36';
 
 JSON::DWIW->bootstrap($VERSION);
 
@@ -263,6 +263,10 @@ Ignore the error and pass through the raw bytes (invalid JSON)
 If set to a true value, escape all multi-byte characters (e.g.,
 \u00e9) when converting to JSON.
 
+=head3 ascii
+
+Synonym for escape_multi_byte
+
 =head3 pretty
 
 Add white space to the output when calling to_json() to make the
@@ -277,6 +281,17 @@ object that evaluates to true in a boolean context, and "false"
 becomes an object that evaluates to false in a boolean context.
 These objects are recognized by the to_json() method, so they
 will be output as "true" or "false" instead of "1" or "0".
+
+=head3 bare_solidus
+
+Don't escape solidus characters ("/") in strings.  The output is
+still legal JSON with this option turned on.
+
+=head3 minimal_escaping
+
+Only do required escaping in strings (solidus and quote).  Tabs,
+newlines, backspaces, etc., will not be escaped with this
+optioned turned on (but the output will still be valid JSON).
 
 =cut
 
@@ -293,7 +308,8 @@ sub new {
     }
 
     foreach my $field (qw/bare_keys use_exceptions bad_char_policy dump_vars pretty
-                          escape_multi_byte convert_bool detect_circular_refs/) {
+                          escape_multi_byte convert_bool detect_circular_refs
+                          ascii bare_solidus minimal_escaping/) {
         if (exists($params->{$field})) {
             $self->{$field} = $params->{$field};
         }
@@ -863,6 +879,8 @@ Thanks to Robert Peters for discovering and tracking down the source of a number
 
 Thanks to Mark Phillips for helping with a bug under Solaris on Sparc.
 
+Thanks to Josh for helping debug [rt.cpan.org #47344].
+
 =head1 LICENSE AND COPYRIGHT
 
 Copyright (c) 2007-2009 Don Owens <don@regexguy.com>.  All rights reserved.
@@ -886,7 +904,7 @@ PURPOSE.
 
 =head1 VERSION
 
-0.32
+0.36
 
 =cut
 
