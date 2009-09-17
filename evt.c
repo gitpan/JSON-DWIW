@@ -10,7 +10,7 @@ warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
 PURPOSE.
 */
 
-/* $Revision: 465 $ */
+/* $Revision: 1273 $ */
 
 /* TODO before release:
    
@@ -432,7 +432,7 @@ push_stack_val(parse_callback_ctx * ctx, SV * val) {
 
     if (SvROK(val)) {
         type = SvTYPE(SvRV(val));
-        if (type == SVt_PVHV || type == SVt_PVAV) {
+        if ( (type == SVt_PVHV || type == SVt_PVAV) && !sv_isobject(val) ) {
             is_hash_or_array = 1;
         }
     }

@@ -14,7 +14,7 @@
 # warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
 # PURPOSE.
 
-# $Revision: 1261 $
+# $Revision: 1274 $
 
 =pod
 
@@ -167,7 +167,7 @@ require DynaLoader;
 Exporter::export_ok_tags('all');
 
 # change in POD as well!
-our $VERSION = '0.36';
+our $VERSION = '0.37';
 
 JSON::DWIW->bootstrap($VERSION);
 
@@ -904,7 +904,7 @@ PURPOSE.
 
 =head1 VERSION
 
-0.36
+0.37
 
 =cut
 
