@@ -7,6 +7,23 @@ JSON::DWIW::Changes - List of significant changes to JSON::DWIW
 
 =head1 CHANGES
 
+=head2 Version 0.38 (Fri 2009-09-18)
+
+=over 4
+
+=item Fixed rt.cpan.org #49773 (missing semicolon)
+
+=back
+
+=head2 Version 0.37 (Wed 2009-09-16)
+
+=over 4
+
+=item Fixed bug with creating Math::BigFloat objects when parsing
+
+=back
+
+
 =head2 Version 0.36 (Sat 2009-08-22)
 
 =over 4
@@ -33,6 +50,7 @@ JSON::DWIW::Changes - List of significant changes to JSON::DWIW
 =item Fixed another memory leak, this time while inserting into a hash
 
 =back
+
 
 =head2 Version 0.33
 

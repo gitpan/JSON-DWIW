@@ -73,7 +73,7 @@
 
 #else
 #define JSONEVT_FREE_MEM(p) free(p)
-#define JSONEVT_NEW(var, nitems, type) var = (type *)malloc((nitems) * sizeof(type))
+#define JSONEVT_NEW(var, nitems, type) var = (type *)malloc((nitems) * sizeof(type));
 #define JSONEVT_RENEW(var, nitems, type)                            \
     if (var) { var = (type *)realloc(var, (nitems) * sizeof(type)); }   \
     else { var = (type *)malloc((nitems) * sizeof(type)); }

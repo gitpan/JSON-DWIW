@@ -1,3 +1,10 @@
+
+See JSON::DWIW::Changes for newer changes.
+
+
+Version 0.38 (Fri 2009-09-18)
+   * Fixed rt.cpan.org #49773 (missing semicolon)
+
 Version 0.37 (Wed 2009-09-16)
    * Fixed bug with creating Math::BigFloat objects when parsing
 

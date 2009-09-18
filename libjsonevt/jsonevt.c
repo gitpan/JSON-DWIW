@@ -205,7 +205,7 @@ vset_error(json_context * ctx, char * file, uint line, char * fmt, va_list *ap) 
 
     msg_len = js_vasprintf(&msg, fmt, ap);
 
-    JSONEVT_NEW(error, loc_len + msg_len + 1, char)
+    JSONEVT_NEW(error, loc_len + msg_len + 1, char);
 	MEM_CPY(error, loc, loc_len);
     MEM_CPY(&error[loc_len], msg, msg_len);
     error[loc_len + msg_len] = '\x00';
