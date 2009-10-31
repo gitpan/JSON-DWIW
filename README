@@ -47,6 +47,9 @@ DESCRIPTION
     exception. It also means that output will be strict JSON, while accepted
     input will be flexible, without having to set any options.
 
+    For a list of changes in recent versions, see the documentation for
+    JSON::DWIW::Changes.
+
   Encoding
     Perl objects get encoded as their underlying data structure, with the
     exception of Math::BigInt and Math::BigFloat, which will be output as
@@ -172,6 +175,26 @@ METHODS
     newlines, backspaces, etc., will not be escaped with this optioned
     turned on (but the output will still be valid JSON).
 
+   parse_number
+    A subroutine reference to call when parsing a number. The subroutine
+    will be provided one string that is the number being parsed. The return
+    value from the subroutine will be used to populate the return data
+    instead of converting to a number.
+
+    E.g.,
+
+      my $json = '{ "a": 6.3e-10 }';
+      my $cb = sub { my ($val) = @_; return "I got the number '$val'"; };
+
+      my $data = JSON::DWIW::deserialize($json, { parse_number => $cb });
+
+   parse_constant
+    A subroutine reference to call when parsing a constant (true, false, or
+    null). The subroutine will be provided one string that is the constant
+    being parsed. The return value from the subroutine will be used to
+    populate the return data instead of converting to a boolean or undef.
+    See the "parse_number" option.
+
   to_json
     Returns the JSON representation of $data (arbitrary datastructure). See
     http://www.json.org/ for details.
@@ -288,6 +311,19 @@ METHODS
   false
     Returns an object that will get output as a false value when encoding to
     JSON.
+
+  json_to_xml($json, \%params)
+    This function (not a method) converts the given JSON to XML. Hash/object
+    keys become tag names. Arrays that are hash values are output as
+    multiple tags with the hash key as the tag name.
+
+    Any characters in hash keys not in [\w-] (i.e., letters, numbers,
+    underscore, or dash), get converted to underscore ("_") when output as
+    XML tags.
+
+    Valid parameters in \%params are the same as for passing to
+    deserialize() or from_json(), plus the "pretty" option, which will add
+    newlines and indentation to the XML to make it more human-readable.
 
 Utilities
     Following are some methods I use for debugging and testing.

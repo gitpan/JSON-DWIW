@@ -10,34 +10,11 @@ warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
 PURPOSE.
 */
 
-/* $Revision: 1273 $ */
+/* $Revision: 1304 $ */
 
-/* TODO before release:
+/* TODO:
    
-   - add benchmark prog to distribution
-   - add comparison of features of other JSON modules
-   - (done) fix static stack (switch to heap if data structure is deep)
-   - (done) write test for deep structure
-   - (done) test scripts
-   - compatability with old implementation
-       + bad_char_policy (done)
-       + booleans (done)
-       + numbers - handle ints and overflow (done)
-       + bare hash keys (done)
-   - compilation on windows (done)
-   - turn off forced -Wall (done)
-   - take care of mmap case (includes on windows, etc.)
-   - (done) remove unused callbacks
-   - (done) add module name and version to errors, as in the old implementation
-   - (done) handle booleans, nulls, and numbers by themselves
-   - (done) check if need to free src when calling sv_setsv()
-   - (done) make sure module name and version are in error messages
-       + done and have test for it
-   - add deserialize_file() subroutine
-   - check stats fields (missing max_string_chars/bytes)
-   - document stats fields (is max_string_bytes the size of the JSON string or the Perl string)
    - "strict" option to follow Crockford's tests
-   - document deserialize() and deserialize_file()
  */
 
 /* #define PERL_NO_GET_CONTEXT */
@@ -113,6 +90,8 @@ typedef struct {
     int stack_level;
     int stack_size;
     uint options;
+    SV *parse_number_cb;
+    SV *parse_const_cb;
 } parse_callback_ctx;
 
 typedef struct {
@@ -197,6 +176,41 @@ json_call_method_one_arg_one_return(SV * obj_or_class, char * method, SV * arg) 
     return rv;
 }
 
+/* the function passed to this should be a copy of the one passed in (see perlcall),
+   e.g., SV *keep = newSVsv(func);
+ */
+static void
+_json_call_function_one_arg_one_return(SV *func, SV *arg, SV **rv_ptr) {
+    dSP;
+
+    ENTER;
+    SAVETMPS;
+    PUSHMARK(SP);
+    XPUSHs(arg);
+    PUTBACK;
+
+    call_sv(func, G_SCALAR);
+
+    SPAGAIN;
+
+    *rv_ptr = POPs;
+    if (SvOK(*rv_ptr)) {
+        SvREFCNT_inc(*rv_ptr);
+    }
+
+    PUTBACK;
+    FREETMPS;
+    LEAVE;
+
+}
+
+static SV *
+json_call_function_one_arg_one_return(SV *func, SV *arg) {
+    SV * rv = NULL;
+    _json_call_function_one_arg_one_return(func, arg, &rv);
+
+    return rv;
+}
 
 static SV *
 get_new_bool_obj(int bool_val) {
@@ -214,83 +228,6 @@ get_new_bool_obj(int bool_val) {
 
     return obj;
 }
-
-#if 0
-static int bool_module_loaded = 0;
-static SV *
-get_new_bool_obj(int bool_val) {
-    SV * obj;
-    /* SV * bool_sv = bool_val ? newSViv(bool_val) : newSVpv("", 0); */
-    SV * bool_sv = newSViv(bool_val);
-    HV * class_stash;
-    SV * class_name = newSVpvn("JSON::DWIW::Boolean", 19);
-    SV * version = newSVpvn("0", 1);
-
-    UNLESS (bool_module_loaded) {
-        load_module(0, class_name, version);
-        bool_module_loaded = 1;
-    }
-
-    SvREFCNT_dec(class_name);
-    SvREFCNT_dec(version);
-    class_stash = gv_stashpv("JSON::DWIW::Boolean", 1);
-
-    obj = sv_bless(newRV_noinc(bool_sv), class_stash);
-
-    return obj;
-}
-#endif
-
-#if 0
-static void
-dump_stack(parse_callback_ctx * ctx) {
-    parse_cb_stack_entry * entry;
-    int i;
-    char * type_str;
-
-    for (i = 0; i <= ctx->stack_level; i++) {
-        entry = (parse_cb_stack_entry *)(ctx->stack + i);
-
-        LOG_DEBUG("stack level %d\n", i);
-        
-        switch (entry->type) {
-          case TYPE_NONE:
-              type_str = "None";
-              break;
-          case TYPE_HASH:
-              type_str = "Hash";
-              break;
-          case TYPE_ARRAY:
-              type_str = "Array";
-              break;
-          case TYPE_HASH_ENTRY_KEY:
-              type_str = "HashEntryKey";
-              break;
-          case TYPE_HASH_ENTRY_VAL:
-              type_str = "HashEntryVal";
-              break;
-          case TYPE_ARRAY_ELEMENT:
-              type_str = "ArrayElement";
-              break;
-          case TYPE_HASH_ENTRY:
-              type_str = "HashEntry";
-              break;
-
-          default:
-              type_str = "Unknown";
-              break;
-        }
-
-        LOG_DEBUG("\ttype %s\n", type_str);
-        if (entry->ref) {
-            LOG_DEBUG("\tRV\n");
-        }
-        else {
-            LOG_DEBUG("\tSV\n");
-        }
-    }
-}
-#endif
 
 #define kHaveModuleNotChecked 0
 #define kHaveModule 1
@@ -494,6 +431,15 @@ number_callback(void * cb_data, char * data, uint data_len, uint flags, uint lev
 
     SETUP_TRACE;
 
+    if (ctx->parse_number_cb) {
+        tmp_sv = newSVpv(data, data_len);
+        sv_val = json_call_function_one_arg_one_return(ctx->parse_number_cb, tmp_sv);
+        SvREFCNT_dec(tmp_sv);
+        push_stack_val(ctx, sv_val);
+        return 0;
+    }
+
+
     /* figure out if we need to create a BigNum object or not */
     if (flags & (JSON_EVT_PARSE_NUMBER_HAVE_DECIMAL | JSON_EVT_PARSE_NUMBER_HAVE_EXPONENT)) {
         if (flags & JSON_EVT_PARSE_NUMBER_HAVE_SIGN) {
@@ -678,9 +624,21 @@ hash_entry_end_callback(void * cb_data, uint flags, uint level) {
 static int
 bool_callback(void * cb_data, uint bool_val, uint flags, uint level) {
     parse_callback_ctx * ctx = (parse_callback_ctx *)cb_data;
-    SV * s;
+    SV * s = Nullsv;
+    SV *arg = Nullsv;
 
-    if (ctx->options & EVT_OPTION_CONVERT_BOOL) {
+    if (ctx->parse_const_cb) {
+        if (bool_val) {
+            arg = newSVpv("true", 4);
+        }
+        else {
+            arg = newSVpv("false", 5);
+        }
+
+        s = json_call_function_one_arg_one_return(ctx->parse_const_cb, arg);
+        SvREFCNT_dec(arg);
+    }
+    else if (ctx->options & EVT_OPTION_CONVERT_BOOL) {
         s = get_new_bool_obj(bool_val);
     }
     else {
@@ -697,7 +655,17 @@ bool_callback(void * cb_data, uint bool_val, uint flags, uint level) {
 static int
 null_callback(void * cb_data, uint flags, uint level) {
     parse_callback_ctx * ctx = (parse_callback_ctx *)cb_data;
-    SV * s = newSV(0);
+    SV * s = Nullsv; 
+    SV * arg = Nullsv;
+
+    if (ctx->parse_const_cb) {
+        arg = newSVpv("null", 4);
+        s = json_call_function_one_arg_one_return(ctx->parse_const_cb, arg);
+        SvREFCNT_dec(arg);
+    }
+    else {
+        s = newSV(0);
+    }
 
     push_stack_val(ctx, s);
 
@@ -765,6 +733,16 @@ ctx, SV * self_sv) { SV ** ptr; HV * self_hash; IV num_keys = 0;
         else if (sv_str_eq(*ptr, "pass_through", 12)) {
             jsonevt_set_bad_char_policy(json_ctx, JSON_EVT_OPTION_BAD_CHAR_POLICY_PASS);
         }
+    }
+
+    ptr = hv_fetch((HV *)self_hash, "parse_number", 12, 0);
+    if (ptr && SvTRUE(*ptr)) {
+        ctx->parse_number_cb = newSVsv(*ptr);
+    }
+
+    ptr = hv_fetch((HV *)self_hash, "parse_constant", 14, 0);
+    if (ptr && SvTRUE(*ptr)) {
+        ctx->parse_const_cb = newSVsv(*ptr);
     }
 
     return 1;
@@ -955,6 +933,13 @@ handle_parse_result(int result, jsonevt_ctx * ctx, perl_wrapper_ctx * wctx) {
 
     /* fix memory leak -- the stack was allocated in init_cbs() */
     JSONEVT_FREE_MEM(wctx->cbd.stack); wctx->cbd.stack = NULL;
+    if (wctx->cbd.parse_number_cb) {
+        SvREFCNT_dec(wctx->cbd.parse_number_cb);
+    }
+
+    if (wctx->cbd.parse_const_cb) {
+        SvREFCNT_dec(wctx->cbd.parse_const_cb);
+    }
 
     /* change to json_reset_ctx(ctx) once we start reusing the ctx from libjsonevt */
     /* jsonevt_reset_ctx(ctx); */

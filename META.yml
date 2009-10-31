@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:                JSON-DWIW
-version:             0.38
+version:             0.39
 abstract:            JSON converter that does what I want
 license:             ~
 author:              

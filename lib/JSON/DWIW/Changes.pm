@@ -7,6 +7,16 @@ JSON::DWIW::Changes - List of significant changes to JSON::DWIW
 
 =head1 CHANGES
 
+=head2 Version 0.39
+
+=over 4
+
+=item Added the json_to_xml() function.
+
+=item Added the parse_number and parse_constant callback options
+
+=back
+
 =head2 Version 0.38 (Fri 2009-09-18)
 
 =over 4

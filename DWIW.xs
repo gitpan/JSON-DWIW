@@ -13,7 +13,7 @@ Copyright (c) 2007-2009 Don Owens <don@regexguy.com>.  All rights reserved.
  PURPOSE.
 */
 
-/* $Revision: 1234 $ */
+/* $Revision: 1299 $ */
 
 /* #define PERL_NO_GET_CONTEXT */
 
@@ -1252,30 +1252,6 @@ MODULE = JSON::DWIW  PACKAGE = JSON::DWIW
 
 PROTOTYPES: DISABLE
 
-=pod
-
-SV *
-_xs_from_json(SV * self, SV * data, SV * error_msg_ref, SV * error_data_ref, SV * stats_data_ref)
-    PREINIT:
-    SV * rv;
-    SV * error_msg;
-    SV * passed_error_msg_sv;
-    int throw_exception = 0;
-
-    CODE:
-    error_msg = (SV *)&PL_sv_undef;
-    rv = from_json_sv(self, data, &error_msg, &throw_exception, error_data_ref, stats_data_ref);
-    if (SvOK(error_msg) && SvROK(error_msg_ref)) {
-        passed_error_msg_sv = SvRV(error_msg_ref);
-        sv_setsv(passed_error_msg_sv, error_msg);
-    }
-
-    RETVAL = rv;
-
-    OUTPUT:
-    RETVAL
-
-=cut
 
 SV *
 do_dummy_parse(SV *self, SV *str)

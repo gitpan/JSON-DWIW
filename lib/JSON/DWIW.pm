@@ -14,7 +14,7 @@
 # warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
 # PURPOSE.
 
-# $Revision: 1275 $
+# $Revision: 1305 $
 
 =pod
 
@@ -71,6 +71,9 @@ unicode) will get converted to something in JSON instead of
 throwing an exception.  It also means that output will be strict
 JSON, while accepted input will be flexible, without having to
 set any options.
+
+For a list of changes in recent versions, see the documentation
+for JSON::DWIW::Changes.
 
 =head2 Encoding
 
@@ -156,6 +159,9 @@ package JSON::DWIW;
 
 use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 
+# work around utf-8 weirdness in Perl < 5.8
+use utf8;
+
 require Exporter;
 require DynaLoader;
 @ISA = qw(DynaLoader);
@@ -167,7 +173,7 @@ require DynaLoader;
 Exporter::export_ok_tags('all');
 
 # change in POD as well!
-our $VERSION = '0.38';
+our $VERSION = '0.39';
 
 JSON::DWIW->bootstrap($VERSION);
 
@@ -293,6 +299,28 @@ Only do required escaping in strings (solidus and quote).  Tabs,
 newlines, backspaces, etc., will not be escaped with this
 optioned turned on (but the output will still be valid JSON).
 
+=head3 parse_number
+
+A subroutine reference to call when parsing a number.  The
+subroutine will be provided one string that is the number being
+parsed.  The return value from the subroutine will be used to
+populate the return data instead of converting to a number.
+
+E.g.,
+
+  my $json = '{ "a": 6.3e-10 }';
+  my $cb = sub { my ($val) = @_; return "I got the number '$val'"; };
+
+  my $data = JSON::DWIW::deserialize($json, { parse_number => $cb });
+
+=head3 parse_constant
+
+A subroutine reference to call when parsing a constant (true,
+false, or null).  The subroutine will be provided one string that
+is the constant being parsed.  The return value from the
+subroutine will be used to populate the return data instead of
+converting to a boolean or undef.  See the "parse_number" option.
+
 =cut
 
 sub new {
@@ -309,7 +337,8 @@ sub new {
 
     foreach my $field (qw/bare_keys use_exceptions bad_char_policy dump_vars pretty
                           escape_multi_byte convert_bool detect_circular_refs
-                          ascii bare_solidus minimal_escaping/) {
+                          ascii bare_solidus minimal_escaping
+                          parse_number parse_constant/) {
         if (exists($params->{$field})) {
             $self->{$field} = $params->{$field};
         }
@@ -801,6 +830,129 @@ Returns an object that will get output as a false value when encoding to JSON.
 
 sub false {
     return JSON::DWIW::Boolean->false;
+}
+
+sub _escape_xml_body {
+    my ($text) = @_;
+    return undef unless defined $text;
+
+    # FIXME: benchmark this and test fully
+    #         $text =~ s/([&<>"'])/$Escape_Map->{$1}/eg;
+    #         return $text;
+        
+    $text =~ s/\&/\&amp;/g;
+    $text =~ s/</\&lt;/g;
+    $text =~ s/>/\&gt;/g;
+
+    return $text;
+}
+
+sub _to_xml {
+    my ($data, $level, $params, $parent_tag) = @_;
+
+    return '' unless defined $data;
+    
+    $params = { } unless $params and UNIVERSAL::isa($params, 'HASH');
+    $level ||= 0;
+    
+    my $xml = '';
+
+    my $ref = ref($data);
+
+    unless ($ref) {
+        # string
+        return _escape_xml_body($data);
+    }
+
+    my $indent = $params->{pretty} ? ('  ' x $level) : '';
+    my $nl = $params->{pretty} ? "\n" : '';
+    my $start = ($params->{pretty} and $level) ? "\n" : '';
+    my $end = ($params->{pretty} and $level >= 2) ? ('  ' x ($level - 1)) : '';
+    my $first = 1;
+
+    if ($ref eq 'ARRAY') {
+        foreach my $e (@$data) {
+            $xml .= "$start$indent<$parent_tag>";
+            $xml .= _to_xml($e, $level + 1, $params, $parent_tag);
+            $xml .= "</$parent_tag>$nl$end";
+        }
+        continue {
+            $first = 0;
+        }
+
+        return $xml;
+    }
+    elsif ($ref eq 'HASH') {
+        foreach my $k (sort keys %$data) {
+            $start = '' unless $first;
+            (my $tag = $k) =~ s/[^\w-]/_/g;
+            my $this_ref = ref($data->{$k});
+            if ($this_ref and $this_ref eq 'ARRAY') {
+                $xml .= _to_xml($data->{$k}, $level, $params, $tag);
+                next;
+            }
+            
+            $xml .= "$start$indent<$tag>";
+            $xml .= _to_xml($data->{$k}, $level + 1, $params, $tag);
+            $xml .= "</$tag>$nl$end";
+        }
+        continue {
+            $first = 0;
+        }
+
+        return $xml;
+    }
+    else {
+        # make sure objects are stringified, e.g., Math::BigInt
+        return _escape_xml_body($data . '');
+    }
+
+    return $xml;
+}
+
+sub _data_to_xml {
+    my ($data, $params) = @_;
+    
+    return _to_xml($data, 0, $params);
+}
+
+
+=pod
+
+=head2 json_to_xml($json, \%params)
+
+This function (not a method) converts the given JSON to XML.
+Hash/object keys become tag names.  Arrays that are hash values
+are output as multiple tags with the hash key as the tag name.
+
+Any characters in hash keys not in [\w-] (i.e., letters, numbers,
+underscore, or dash), get converted to underscore ("_") when
+output as XML tags.
+
+Valid parameters in \%params are the same as for passing
+to deserialize() or from_json(), plus the "pretty" option, which
+will add newlines and indentation to the XML to make it more
+human-readable.
+
+=cut
+sub json_to_xml {
+    my ($json, $params) = @_;
+
+    my $data;
+    if ($params) {
+        $data = JSON::DWIW::deserialize($json, $params);
+    }
+    else {
+        $data = JSON::DWIW::deserialize($json);
+    }
+
+    my $ref = ref($data);
+    if ($ref and $ref eq 'ARRAY') {
+        warn "top level of data must be an object/hash ref in json_to_xml() call";
+        return undef;
+    }
+
+    return _data_to_xml($data, $params);
 }
 
 =pod
