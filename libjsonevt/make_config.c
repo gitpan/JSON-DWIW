@@ -110,7 +110,6 @@ print_foot(FILE *fp) {
 static FILE *
 sync_header(FILE *cur_fp, const char *new_file) {
     FILE *fp = fopen(new_file, "w");
-    // long cur_pos = ftell(cur_fp);
     char buf[1024];
     int amt_read;
     int amt_w = 0;
@@ -226,7 +225,7 @@ main(int argc, char **argv) {
 
     test_rec header_list[ ] = {
         { "stdint.h", "STDINT_H" },
-        { "inttypes.h", "INT_TYPES_H" },
+        { "inttypes.h", "INTTYPES_H" },
         { "sys/types.h", "SYS_TYPES_H" },
         { "sys/mman.h", "SYS_MMAN_H" },
         { "limits.h", "LIMITS_H" },
@@ -306,12 +305,12 @@ main(int argc, char **argv) {
 
         fprintf(conf_fh, "/* %s */\n", file);
         if (test_func(file, exec_argc, exec_argv, test_exec)) {
-            fprintf(conf_fh, "#ifndef HAVE_FUNC_%s\n", name);
-            fprintf(conf_fh, "#define HAVE_FUNC_%s 1\n", name);
+            fprintf(conf_fh, "#ifndef HAVE_%s\n", name);
+            fprintf(conf_fh, "#define HAVE_%s 1\n", name);
             fprintf(conf_fh, "#endif\n");            
         }
         else {
-            fprintf(conf_fh, "/* #define HAVE_FUNC_%s 1 */\n", name);
+            fprintf(conf_fh, "/* #define HAVE_%s 1 */\n", name);
         }
 
         fprintf(conf_fh, "\n");
@@ -329,20 +328,21 @@ main(int argc, char **argv) {
         fprintf(conf_fh, "/* %s */\n", file);
 
         if (test_type(file, exec_argc, exec_argv, conf_fh)) {
-            fprintf(conf_fh, "#ifndef HAVE_TYPE_%s\n", name);
-            fprintf(conf_fh, "#define HAVE_TYPE_%s 1\n", name);
+            fprintf(conf_fh, "#ifndef HAVE_%s\n", name);
+            fprintf(conf_fh, "#define HAVE_%s 1\n", name);
             fprintf(conf_fh, "#endif\n");
         }
 
         hp++;
     }
 
-    
+    /*
     size = sizeof(unsigned long);
     fprintf(conf_fh, "#define JSONEVT_ULONG_SIZE %lu\n", size);
 
     size = sizeof(unsigned int);
     fprintf(conf_fh, "#define JSONEVT_UINT_SIZE %lu\n", size);
+    */
 
     print_foot(conf_fh);
 

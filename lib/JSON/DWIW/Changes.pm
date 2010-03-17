@@ -7,6 +7,16 @@ JSON::DWIW::Changes - List of significant changes to JSON::DWIW
 
 =head1 CHANGES
 
+=head2 Version 0.40
+
+=over 4
+
+=item Includes updates to jsonevt to fix parsing bug (segfault when parsing just "[").
+
+=item Includes latest jsonevt release (version 0.1.0).
+
+=back
+
 =head2 Version 0.39
 
 =over 4

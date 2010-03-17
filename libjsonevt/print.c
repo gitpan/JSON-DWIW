@@ -23,7 +23,7 @@
 
 int
 js_vasprintf(char **ret, const char *fmt, va_list *ap_ptr) {
-#if !defined(JSONEVT_ON_WINDOWS) && defined(HAVE_FUNC_VASPRINTF)
+#if !defined(JSONEVT_ON_WINDOWS) && defined(HAVE_VASPRINTF)
     return vasprintf(ret, fmt, *ap_ptr);
 #else
     char buf[4096];

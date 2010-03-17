@@ -4,7 +4,7 @@
 
 /*
 
- Copyright (c) 2007-2009 Don Owens <don@regexguy.com>.  All rights reserved.
+ Copyright (c) 2007-2010 Don Owens <don@regexguy.com>.  All rights reserved.
 
  This is free software; you can redistribute it and/or modify it under
  the Perl Artistic license.  You should have received a copy of the
@@ -18,7 +18,7 @@
 
 */
 
-/* $Revision: 1300 $ */
+/* $Revision: 1472 $ */
 
 #ifndef JSONEVT_UTILS_H
 #define JSONEVT_UTILS_H
@@ -28,8 +28,10 @@
 #include <sys/types.h>
 #include <stdlib.h>
 
-#define JSONEVT_PTR2UL(p) ( (unsigned long)(p) )
+/* #define JSONEVT_PTR2UL(p) ( (unsigned long)(p) ) */
+#define JSONEVT_PTR2UL(p) ( (uintptr_t)(p) )
 
+/*
 #if JSONEVT_ULONG_SIZE == 4
 #define JSONEVT_PTRSPEC "10"
 #else
@@ -39,8 +41,11 @@
 #define JSONEVT_PTRSPEC "034"
 #endif
 #endif
+*/
 
-#define JSONEVT_PTR_xf JSONEVT_PTRSPEC"lx"
+/* #define JSONEVT_PTR_xf JSONEVT_PTRSPEC"lx" */
+/* uintptr_t */
+#define JSONEVT_PTR_xf PRIxPTR
 
 #if defined(DO_DEBUG) && defined(__GNUC__)
 #define JSONEVT_FREE_MEM(p)                                             \

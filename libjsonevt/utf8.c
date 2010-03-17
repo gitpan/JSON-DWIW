@@ -4,7 +4,7 @@
 
 /*
 
- Copyright (c) 2007-2009 Don Owens <don@regexguy.com>.  All rights reserved.
+ Copyright (c) 2007-2010 Don Owens <don@regexguy.com>.  All rights reserved.
 
  This is free software; you can redistribute it and/or modify it under
  the Perl Artistic license.  You should have received a copy of the
@@ -19,8 +19,8 @@
 */
 
 /*
-  $Revision: 268 $
-  $Date: 2009-04-26 18:19:07 -0700 (Sun, 26 Apr 2009) $
+  $Revision: 1400 $
+  $Date: 2010-01-20 22:40:32 -0800 (Wed, 20 Jan 2010) $
 */
 
 #include "utf8.h"

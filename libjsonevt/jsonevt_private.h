@@ -4,7 +4,7 @@
 
 /*
 
- Copyright (c) 2007-2009 Don Owens <don@regexguy.com>.  All rights reserved.
+ Copyright (c) 2007-2010 Don Owens <don@regexguy.com>.  All rights reserved.
 
  This is free software; you can redistribute it and/or modify it under
  the Perl Artistic license.  You should have received a copy of the
@@ -18,7 +18,7 @@
 
 */
 
-/* $Header: /repository/projects/libjsonevt/jsonevt_private.h,v 1.33 2009-02-23 17:46:55 don Exp $ */
+/* $Revision$ */
 
 #ifndef JSONEVT_PRIVATE_H
 #define JSONEVT_PRIVATE_H
@@ -45,7 +45,7 @@ struct context_flags_struct {
 typedef struct json_extern_ctx json_context;
 
 struct json_extern_ctx {
-    char * buf;
+    const char * buf;
     uint len;
     uint pos;
     uint char_pos;
@@ -97,6 +97,8 @@ struct json_extern_ctx {
 
     struct context_flags_struct flags;
     jsonevt_ctx * ext_ctx;
+
+    int cb_early_return_val;
 };
 
 /*
@@ -162,8 +164,16 @@ typedef struct {
 /* FIXME: make this work under compilers not supporting variadic macros */
 #define JSON_DEBUG(...)
 #endif
+
+#if JSON_DO_TRACE
+#define JSON_TRACE(...) printf("%s (%d) - ", __FILE__, __LINE__); printf(__VA_ARGS__); printf("\n"); fflush(stdout)
 #else
-static void JSON_DEBUG(...) { }
+#define JSON_TRACE(...)
+#endif
+
+#else
+void JSON_DEBUG(char *fmt, ...);
+void JSON_TRACE(char *fmt, ...);
 #endif
 
 #if defined(JSONEVT_HAVE_FULL_VARIADIC_MACROS)
@@ -174,7 +184,7 @@ static void JSON_DEBUG(...) { }
 #define PDB(...)
 #endif
 #else
-static void PDB(...) { }
+void PDB(char *fmt, ...);
 #endif
 
 #ifdef JSONEVT_ON_WINDOWS
@@ -207,7 +217,7 @@ static void PDB(...) { }
 int js_asprintf(char ** ret, const char * fmt, ...);
 
 #define ZERO_MEM(buf, buf_size) JSON_DEBUG("ZERO_MEM: buf=%p, size=%u", buf, buf_size); \
-    memzero(buf, buf_size)
+    memset(buf, 0, buf_size)
 #define MEM_CPY(dst_buf, src_buf, size) JSON_DEBUG("MEM_CPY: dst=%p, src=%p, size=%u", \
         (dst_buf), (src_buf), (size));                                  \
     memcpy(dst_buf, src_buf, size)
@@ -220,6 +230,8 @@ int js_asprintf(char ** ret, const char * fmt, ...);
 #define PEEK_CHAR_LEN(c) (c->cur_char_len);
 
 #define HAVE_MORE_CHARS(ctx) (ctx->pos >= ctx->len ? 0 : 1)
+#define AT_END_OF_BUF(c) ( (c)->pos >= (c)->len )
+
 #define GET_BUF(c) ((c)->buf)
 #define GET_STACK_BUF(c) ((c)->stack_buf)
 #define GET_STACK_BUF_LEN(s) ((s)->stack_buf_len)
@@ -251,7 +263,7 @@ int js_asprintf(char ** ret, const char * fmt, ...);
 
 #define INIT_JSON_STR_STATIC_BUF(s, orig_buf, orig_len, st_buf, st_buf_len) \
     ZERO_MEM((void *)(s), sizeof(json_str)); (s)->flags.using_orig = 1;  \
-    (s)->buf = (orig_buf); (s)->len = orig_len;                         \
+    (s)->buf = (char *)(orig_buf); (s)->len = orig_len;                 \
     (s)->stack_buf = st_buf; (s)->stack_buf_len = st_buf_len;           \
     JSON_DEBUG("INIT_JSON_STR_STATIC_BUF() called, orig_buf=%p, orig_len=%u", orig_buf, orig_len)
 
@@ -286,6 +298,7 @@ int js_asprintf(char ** ret, const char * fmt, ...);
 
 #define CB_OK_VAL 0
 #define CB_IS_TERM(the_call) (the_call ? 1 : 0)
+#define CB_SET_TERM_VAL(ctx, val) (ctx)->cb_early_return_val = val
 
 #define DO_GEN_CALLBACK(ctx, c_name, flags, level) ( (ctx)->c_name ? \
         (ctx)->c_name((ctx)->cb_data, flags, level) : CB_OK_VAL)

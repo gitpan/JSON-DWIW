@@ -9,6 +9,15 @@
 
 #include "jsonevt_config.h"
 
+#ifdef JSONEVT_DEF_HAVE_INTTYPES_H
+#include <inttypes.h>
+#else
+#ifdef JSONEVT_DEF_HAVE_STDINT_H
+#include <stdint.h>
+#endif
+#endif
+
+/*
 #ifdef _MSC_VER
 typedef unsigned __int8   uint8_t;
 typedef unsigned __int32  uint32_t;
@@ -23,6 +32,7 @@ typedef unsigned __int32  uint32_t;
 #endif
 
 #endif
+*/
 
 #endif /* INT_DEFS_H */
 

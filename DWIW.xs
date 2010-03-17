@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2007-2009 Don Owens <don@regexguy.com>.  All rights reserved.
+Copyright (c) 2007-2010 Don Owens <don@regexguy.com>.  All rights reserved.
 
  This is free software; you can redistribute it and/or modify it under
  the Perl Artistic license.  You should have received a copy of the
@@ -13,7 +13,7 @@ Copyright (c) 2007-2009 Don Owens <don@regexguy.com>.  All rights reserved.
  PURPOSE.
 */
 
-/* $Revision: 1299 $ */
+/* $Revision: 1431 $ */
 
 /* #define PERL_NO_GET_CONTEXT */
 
@@ -24,34 +24,6 @@ Copyright (c) 2007-2009 Don Owens <don@regexguy.com>.  All rights reserved.
 #include "old_parse.h"
 */
 
-#ifndef JSONEVT_HAVE_FULL_VARIADIC_MACROS
-
-void
-JSON_DEBUG(char *fmt, ...) {
-#if JSON_DO_DEBUG
-    va_list ap;
-
-    va_start(ap, fmt);
-    vprintf(fmt, ap);
-    printf("\n");
-    va_end(ap);
-#endif
-
-}
-
-void
-JSON_TRACE(char *fmt, ...) {
-#if JSON_DO_TRACE
-    va_list ap;
-
-    va_start(ap, fmt);
-    vprintf(fmt, ap);
-    printf("\n");
-    va_end(ap);
-#endif
-}
-
-#endif /* ifndef JSONEVT_HAVE_FULL_VARIADIC_MACROS */
 
 /* get rid of "value computed is not used" warnings */
 #define IGNORE_RV(x) (void)(x)
@@ -74,6 +46,9 @@ vjson_encode_error(self_context * ctx, const char * file, int line_num, const ch
     return error;
 }
 
+
+#if defined(JSONEVT_HAVE_FULL_VARIADIC_MACROS)
+
 static SV *
 json_encode_error(self_context * ctx, const char * file, int line_num, const char * fmt, ...) {
     va_list ap;
@@ -86,16 +61,17 @@ json_encode_error(self_context * ctx, const char * file, int line_num, const cha
     return error;
 }
 
-#ifdef __GNUC__
 
 #if JSON_DO_EXTENDED_ERRORS
 
 
 #define JSON_ENCODE_ERROR(ctx, ...) json_encode_error(ctx, __FILE__, __LINE__, __VA_ARGS__)
 
-#endif
+#else
 
 #define JSON_ENCODE_ERROR(ctx, ...) json_encode_error(ctx, NULL, 0, __VA_ARGS__)
+
+#endif
 
 #else
 
@@ -851,19 +827,15 @@ to_json(self_context * self, SV * data_ref, int indent_level, unsigned int cur_l
     STRLEN len = 0;
     SV * ref_tmp = NULL;
 
-    JSON_DEBUG("to_json() called");
-
     JsDumpSv(data_ref, self->flags);
 
     UNLESS (SvROK(data_ref)) {
-        JSON_DEBUG("not a reference");
         data = data_ref;
         if (SvOK(data)) {
 
 
             /* scalar */
             type = SvTYPE(data);
-            JSON_TRACE("found type %u", type);
             switch (type) {
               case SVt_NULL:
                 /* undef? */
@@ -885,7 +857,6 @@ to_json(self_context * self, SV * data_ref, int indent_level, unsigned int cur_l
                   break;
 
               case SVt_PV:
-                  JSON_TRACE("found SVt_PV");
                   sv_catsv(rsv, data);
                   tmp = rsv;
                   rsv = escape_json_str(self, tmp);
@@ -912,7 +883,6 @@ to_json(self_context * self, SV * data_ref, int indent_level, unsigned int cur_l
 
               default:
                   /* now what? */
-                  JSON_DEBUG("unkown data type");
                   sv_catsv(rsv, data);
                   tmp = rsv;
                   rsv = escape_json_str(self, tmp);
@@ -927,8 +897,6 @@ to_json(self_context * self, SV * data_ref, int indent_level, unsigned int cur_l
             return rsv;
         }
     }
-
-    JSON_DEBUG("is a reference");
 
     if (self->ref_track) {
         ref_tmp = get_ref_addr(data_ref);
@@ -961,7 +929,6 @@ to_json(self_context * self, SV * data_ref, int indent_level, unsigned int cur_l
         }
         else if (sv_derived_from(data_ref, "Math::BigInt")
             || sv_derived_from(data_ref, "Math::BigFloat")) {
-            JSON_DEBUG("found big number");
             tmp = newSVpv("", 0);
             sv_catsv(tmp, data_ref);
             data_str = (U8 *)SvPV(tmp, before_len);
@@ -1040,14 +1007,11 @@ to_json(self_context * self, SV * data_ref, int indent_level, unsigned int cur_l
           break;
 
       case SVt_PVAV: /* array */
-          JSON_DEBUG("==========> found array ref");
           SvREFCNT_dec(rsv);
           return encode_array(self, (AV *)data, indent_level, cur_level);
         break;
 
       case SVt_PVHV: /* hash */
-          JSON_DEBUG("==========> found hash ref");
-
           SvREFCNT_dec(rsv);
           return encode_hash(self, (HV *)data, indent_level, cur_level);
           break;
@@ -1188,8 +1152,6 @@ parse_mmap_file(SV * self, SV * file, SV * error_msg_ref) {
         return &PL_sv_undef;
     }
 
-    JSON_DEBUG("HERE - filename='%s'\n", filename);
-
     /* FIXME: check here to see if file size too big, e.g., > 2GB */
 
     len = file_info.st_size;
@@ -1201,10 +1163,7 @@ parse_mmap_file(SV * self, SV * file, SV * error_msg_ref) {
         return &PL_sv_undef;
     }
 
-    JSON_DEBUG("HERE 2 - len=%u, base=%"UVxf"\n", len, PTR2UV(base));
-    JSON_DEBUG("data: ");
     fread(base, 1, len, stdout);
-    JSON_DEBUG("\n");
 
     rv = from_json(self, base, len, &error_msg, &throw_exception);
     if (SvOK(error_msg) && SvROK(error_msg_ref)) {

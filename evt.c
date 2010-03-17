@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2007-2009 Don Owens <don@regexguy.com>.  All rights reserved.
+Copyright (c) 2007-2010 Don Owens <don@regexguy.com>.  All rights reserved.
 
 This is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.  See perlartistic.
@@ -10,7 +10,7 @@ warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
 PURPOSE.
 */
 
-/* $Revision: 1304 $ */
+/* $Revision: 1474 $ */
 
 /* TODO:
    
@@ -400,7 +400,7 @@ push_stack_val(parse_callback_ctx * ctx, SV * val) {
 }
 
 static int
-string_callback(void * cb_data, char * data, uint data_len, uint flags, uint level) {
+string_callback(void * cb_data, const char * data, uint data_len, uint flags, uint level) {
     parse_callback_ctx * ctx = (parse_callback_ctx *)cb_data;
     SV * val;
 
@@ -417,7 +417,7 @@ string_callback(void * cb_data, char * data, uint data_len, uint flags, uint lev
 }
 
 static int
-number_callback(void * cb_data, char * data, uint data_len, uint flags, uint level) {
+number_callback(void * cb_data, const char * data, uint data_len, uint flags, uint level) {
     parse_callback_ctx * ctx = (parse_callback_ctx *)cb_data;
     NV nv_val;
     IV iv_val;

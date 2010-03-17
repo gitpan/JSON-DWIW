@@ -4,7 +4,7 @@
 
 /*
 
- Copyright (c) 2008-2009 Don Owens <don@regexguy.com>.  All rights reserved.
+ Copyright (c) 2008-2010 Don Owens <don@regexguy.com>.  All rights reserved.
 
  This is free software; you can redistribute it and/or modify it under
  the Perl Artistic license.  You should have received a copy of the
@@ -19,6 +19,8 @@
 */
 
 /* $Header: /repository/projects/libjsonevt/json_writer.c,v 1.6 2009-04-21 06:21:44 don Exp $ */
+
+
 
 #include "jsonevt_private.h"
 
@@ -622,13 +624,28 @@ jsonevt_do_unit_tests() {
     _jsonevt_buf * val_ctx;
     char *test_buf = "foo \x0a \"\xe7\x81\xab\" bar";
     char *expected_buf = NULL;
+    char *rv = NULL;
+    size_t length_in = 0;
+    size_t length_out = 0;
 
+    /* internal function */
     val_ctx = _json_escape_c_buffer(test_buf, strlen(test_buf), JSON_EVT_OPTION_NONE);
     
     expected_buf = "foo \x0a \\\"\xe7\x81\xab\\\" bar";
 
-    printf("in: %s\n", test_buf);
-    printf("out: %s\n", val_ctx->data);
+    printf("Internal: _json_escape_c_buffer()\n");
+    printf("\tin: %s\n", test_buf);
+    printf("\tout: %s\n", val_ctx->data);
+    printf("\n");
+    
+    /* public function */
+    printf("Public: jsonevt_escape_c_buffer()\n");
+    
+    length_in = strlen(test_buf);
+    rv = jsonevt_escape_c_buffer(test_buf, length_in, &length_out,
+        JSON_EVT_OPTION_NONE);
+    printf("\tin (%u bytes): %s\n", length_in, test_buf);
+    printf("\tout (%u bytes): %s\n", length_out, rv);
 
     return 0;
 }

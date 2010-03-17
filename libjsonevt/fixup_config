@@ -1,0 +1,17 @@
+#!/bin/sh
+
+grep -v ' VERSION ' config.h | grep -v ' PACKAGE ' |
+     sed '/\(#define\|#undef\) \(HAVE_\)/{
+         s//\1 JSONEVT_DEF_\2/
+     }
+     /\(#define\|#undef\) \(STDC_HEADERS\|TIME_WITH_SYS_TIME\)/{
+         s//\1 JSONEVT_DEF_HAVE_\2/     
+     }
+     /\(#define\|#undef\) \(PACKAGE_VERSION\)/{
+         s//\1 JSONEVT_VERSION/
+     }
+     /\(#define\|#undef\) \(PACKAGE_.*\)/{
+         s//\1 JSONEVT_\2/
+     }
+     ;' > jsonevt_config.h
+

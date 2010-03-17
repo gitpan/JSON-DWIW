@@ -25,7 +25,7 @@ my @utf_headers = map { "$_.h" } @utf_files;
 # my $obj_str = join(' ', map { "$_\$(OBJ_EXT)" } @utf_files, 'evt', 'jsonevt', 'json_writer',
 #                    'print', 'old_parse', 'old_common');
 my $obj_str = join(' ', map { "$_\$(OBJ_EXT)" } @utf_files, 'evt', 'jsonevt', 'json_writer',
-                   'print', 'old_common');
+                   'print', 'old_common', 'convenience');
 
 sub MY::postamble {
     my ($self) = @_;
@@ -54,9 +54,9 @@ sub MY::postamble {
     # $stuff .= "DWIW\$(OBJ_EXT): DWIW.h old_parse.h old_common.h $config_h\n\n";
     $stuff .= "DWIW\$(OBJ_EXT): DWIW.h old_common.h $config_h\n\n";
 
-    my $make_conf = File::Spec->catfile($src_dir, 'make_config');
-    my $exec_make_conf = File::Spec->rel2abs($make_conf);
-    $exec_make_conf .= " $config_h ./check_config " . $cc_main . ' ' . $exec_output_name->('check_config');
+#     my $make_conf = File::Spec->catfile($src_dir, 'make_config');
+#     my $exec_make_conf = File::Spec->rel2abs($make_conf);
+#     $exec_make_conf .= " $config_h ./check_config " . $cc_main . ' ' . $exec_output_name->('check_config');
     
     my $add_evt_obj = sub {
         my ($name, @extra_headers) = @_;
@@ -75,13 +75,16 @@ sub MY::postamble {
 
     $stuff .= "$obj_str: $config_h\n\n";
 
-    $stuff .= "$config_h: $make_conf\n\t$exec_make_conf\n\n";
-    $stuff .= "$make_conf: $make_conf.c\n\t$cc_main " . $exec_output_name->($make_conf)
-        . " $make_conf.c\n\n";
-        
+#     $stuff .= "$config_h: $make_conf\n\t$exec_make_conf\n\n";
+#     $stuff .= "$make_conf: $make_conf.c\n\t$cc_main " . $exec_output_name->($make_conf)
+#         . " $make_conf.c\n\n";
+
+    $stuff .= "$config_h:\n\tcd $src_dir; ./configure && ./fixup_config\n\n";
+    
     $stuff .= $add_evt_obj->('jsonevt');
     $stuff .= $add_evt_obj->('json_writer');
     $stuff .= $add_evt_obj->('print', 'print.h');
+    $stuff .= $add_evt_obj->('convenience');
 
     foreach my $file (@utf_files) {
         $stuff .= "$file\$(OBJ_EXT): ";
@@ -115,6 +118,8 @@ sub MY::post_constants {
         $optimize .= ' -g' unless $optimize =~ /-g/;
     }
 
+    # $optimize .= ' -ansi -pedantic';
+    
     push @updates, "OPTIMIZE = $optimize";
 
     return join("\n", @updates);

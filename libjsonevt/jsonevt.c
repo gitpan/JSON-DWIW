@@ -4,7 +4,7 @@
 
 /*
 
- Copyright (c) 2007-2009 Don Owens <don@regexguy.com>.  All rights reserved.
+ Copyright (c) 2007-2010 Don Owens <don@regexguy.com>.  All rights reserved.
 
  This is free software; you can redistribute it and/or modify it under
  the Perl Artistic license.  You should have received a copy of the
@@ -50,6 +50,28 @@ typedef unsigned int uint;
 #include <fcntl.h>
 #include <sys/stat.h>
 
+#define BFD(x) { #x, x },
+
+typedef struct {
+    const char *n;
+    unsigned int val;
+} fd;
+
+static fd flag_data[ ] =
+    {
+        BFD(JSON_EVT_PARSE_NUMBER_HAVE_SIGN)
+        BFD(JSON_EVT_PARSE_NUMBER_HAVE_DECIMAL)
+        BFD(JSON_EVT_PARSE_NUMBER_HAVE_EXPONENT)
+        BFD(JSON_EVT_IS_HASH_KEY)
+        BFD(JSON_EVT_IS_HASH_VALUE)
+        BFD(JSON_EVT_IS_ARRAY_ELEMENT)
+        BFD(JSON_EVT_IS_C_COMMENT)
+        BFD(JSON_EVT_IS_CPLUSPLUS_COMMENT)
+        BFD(JSON_EVT_IS_PERL_COMMENT)
+        { NULL, 0 }
+    };
+
+
 #if 0
 #define SETUP_TRACE fprintf(stderr, "in %s() at line %d of %s\n", __func__, __LINE__, __FILE__); \
     fflush(stderr);
@@ -87,8 +109,9 @@ static char * set_error(json_context * ctx, char * file, uint line, char * fmt, 
 #define UNI_CHK_RETURN(ctx, val) ((ctx->options && (ctx->options & JSON_EVT_OPTION_BAD_CHAR_POLICY_CONVERT ? val : (ctx->options & JSON_EVT_OPTION_BAD_CHAR_POLICY_PASS ? val : 0)) ) : 0)
 */
 
+
 static uint
-json_utf8_to_uni_with_check(json_context * ctx, char * str, uint cur_len, uint * ret_len,
+json_utf8_to_uni_with_check(json_context * ctx, const char * str, uint cur_len, uint * ret_len,
     uint flags) {
 
     uint uval;
@@ -241,7 +264,7 @@ eat_whitespace(json_context *ctx, int commas_are_whitespace, uint line) {
     int keep_going = 1;
     uint last_char = 0;
     uint last_char_valid = 0;
-    char * tmp_buf = NULL;
+    const char * tmp_buf = NULL;
 
     SETUP_TRACE;
 
@@ -425,7 +448,8 @@ switch_to_dynamic_buf(json_str * s) {
 /* return estimate JSON string size in bytes */
 /* assume utf-8 for now */
 static uint
-estimate_json_string_size(char * buf, uint max_len, uint boundary_char, uint * end_quote_pos) {
+estimate_json_string_size(const char * buf, uint max_len, uint boundary_char,
+    uint * end_quote_pos) {
     uint i;
     uint size = 0;
     uint bytes_this_char = 0;
@@ -584,7 +608,7 @@ static int
 parse_word(json_context * ctx, int is_identifier, uint level, uint flags) {
     uint this_char = PEEK_CHAR(ctx);
     uint start_pos;
-    char * start_buf;
+    const char * start_buf;
     uint len;
 
     if (this_char >= '0' && this_char <= '9') {
@@ -697,7 +721,7 @@ parse_string(json_context * ctx, uint level, uint flags) {
     int i;
     /* uint this_val; */
     uint first_time = 1;
-    char * orig_buf = NULL;
+    const char * orig_buf = NULL;
     char stack_buf[STATIC_BUF_SIZE];
     int cb_rv = CB_OK_VAL;
 
@@ -758,6 +782,7 @@ parse_string(json_context * ctx, uint level, uint flags) {
             if (CB_IS_TERM(cb_rv)) {
                 SETUP_TRACE;
                 SET_CB_ERROR(ctx, "string");
+                CB_SET_TERM_VAL(ctx, cb_rv);
                 return 0;
             }
 
@@ -866,6 +891,8 @@ parse_array(json_context * ctx, uint level, uint flags) {
     int keep_going = 1;
     int found_comma = 0;
 
+    SETUP_TRACE;
+
     if (this_char != '[') {
         return 0;
     }
@@ -891,6 +918,11 @@ parse_array(json_context * ctx, uint level, uint flags) {
         NEXT_CHAR(ctx);
         EAT_WHITESPACE(ctx, 0);
         return 1;
+    }
+
+    if (AT_END_OF_BUF(ctx)) {
+        SET_ERROR(ctx, "array not terminated");
+        return 0;
     }
 
     while (keep_going) {
@@ -1195,6 +1227,7 @@ jsonevt_reset_ctx(jsonevt_ctx * ctx) {
     ctx->options = options;
     ctx->bad_char_policy = bad_char_policy;
 
+    ctx->cb_early_return_val = 0;
 }
 
 char *
@@ -1452,7 +1485,7 @@ jsonevt_get_line_num(jsonevt_ctx * ctx) {
 static int
 check_bom(json_context * ctx) {
     uint len = ctx->len;
-    char * buf = ctx->buf;
+    const char * buf = ctx->buf;
     char * error_fmt = "found BOM for unsupported %s encoding -- this parser requires UTF-8";
 
     /* check for UTF BOM signature */
@@ -1530,7 +1563,7 @@ check_bom(json_context * ctx) {
 }
 
 int
-jsonevt_parse(jsonevt_ctx * ext_ctx, char * buf, uint len) {
+jsonevt_parse(jsonevt_ctx * ext_ctx, const char * buf, uint len) {
     /* json_context ctx; */
 
     jsonevt_ctx * ctx = ext_ctx;
@@ -1591,7 +1624,7 @@ jsonevt_get_version(uint *major, uint *minor, uint *patch) {
 
 
 int
-jsonevt_parse_file(jsonevt_ctx * ext_ctx, char * file) {
+jsonevt_parse_file(jsonevt_ctx * ext_ctx, const char * file) {
     int rv;
     char * buf = (char *)0;
     json_context ctx;
@@ -1714,3 +1747,39 @@ void * _jsonevt_renew(void **ptr, size_t size) {
 
     return *ptr;
 }
+
+int
+jsonevt_print_flags(uint flags, FILE *fp) {
+    fd *f;
+    int found = 0;
+
+    if (fp == 0) {
+        fp = stderr;
+    }
+
+    f = flag_data;
+    for (f = flag_data; f->n; f++) {
+        if (flags & f->val) {
+            if (found) {
+                fprintf(fp, " | ");
+            }
+
+            fprintf(fp, "%s", f->n);
+            found = 1;
+        }
+    }
+
+    if (found) {
+        return 1;
+    }
+    else {
+        return 0;
+    }
+}
+
+
+#if !defined(JSONEVT_HAVE_FULL_VARIADIC_MACROS)
+void JSON_DEBUG(char *fmt, ...) { }
+void PDB(char *fmt, ...) { }
+void JSON_TRACE(char *fmt, ...) { }
+#endif

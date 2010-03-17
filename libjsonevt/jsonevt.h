@@ -4,7 +4,7 @@
 
 /*
 
- Copyright (c) 2007-2009 Don Owens <don@regexguy.com>.  All rights reserved.
+ Copyright (c) 2007-2010 Don Owens <don@regexguy.com>.  All rights reserved.
 
  This is free software; you can redistribute it and/or modify it under
  the Perl Artistic license.  You should have received a copy of the
@@ -24,8 +24,18 @@
 #define JSONEVT_H
 
 #include <sys/types.h>
+#include <stdio.h>
 
-#include "jsonevt_config.h"
+#include <jsonevt_config.h>
+
+#ifdef JSONEVT_DEF_HAVE_INTTYPES_H
+#include <inttypes.h>
+#else
+#ifdef JSONEVT_DEF_HAVE_STDINT_H
+#include <stdint.h>
+#endif
+#endif
+
 
 #ifdef __cplusplus
 #define JSON_DO_CPLUSPLUS_WRAP_BEGIN extern "C" {
@@ -55,13 +65,17 @@ JSON_DO_CPLUSPLUS_WRAP_BEGIN
 
 #endif
 
-#ifdef __GNUC__
+#if defined(__GNUC__) && !defined(__STRICT_ANSI__)
 #define JSONEVT_HAVE_FULL_VARIADIC_MACROS
 #define JSONEVT_HAVE_VARIADIC_MACROS
 #endif
 
+#undef JSONEVT_HAVE_FULL_VARIADIC_MACROS
+#undef JSONEVT_HAVE_VARIADIC_MACROS
+
 /* FIXME: probably should change this to ifdef HAVE_TYPE_UINT from jsonevt_config.h */
-#ifdef JSONEVT_ON_WINDOWS
+/* #ifdef JSONEVT_ON_WINDOWS */
+#ifndef JSONEVT_DEF_HAVE_UINT
 typedef unsigned int uint;
 #endif
 
@@ -71,15 +85,18 @@ jsonevt_ctx * jsonevt_new_ctx();
 void jsonevt_free_ctx(jsonevt_ctx * ctx);
 void jsonevt_reset_ctx(jsonevt_ctx * ctx);
 char * jsonevt_get_error(jsonevt_ctx * ctx);
-int jsonevt_parse(jsonevt_ctx * ctx, char * buf, uint len);
-int jsonevt_parse_file(jsonevt_ctx * ctx, char * file);
+int jsonevt_parse(jsonevt_ctx * ctx, const char * buf, uint len);
+int jsonevt_parse_file(jsonevt_ctx * ctx, const char * file);
 
 typedef int (*json_gen_cb)(void * cb_data, uint flags, uint level);
 
-typedef int (*json_string_cb)(void * cb_data, char * data, uint data_len, uint flags, uint level);
-typedef int (*json_number_cb)(void * cb_data, char * data, uint data_len, uint flags, uint level);
+typedef int (*json_string_cb)(void * cb_data, const char * data, uint data_len,
+    uint flags, uint level);
+typedef int (*json_number_cb)(void * cb_data, const char * data, uint data_len,
+    uint flags, uint level);
 typedef int (*json_bool_cb)(void * cb_data, uint bool_val, uint flags, uint level);
-typedef int (*json_comment_cb)(void * cb_data, char * data, uint data_len, uint flags, uint level);
+typedef int (*json_comment_cb)(void * cb_data, const char * data, uint data_len,
+    uint flags, uint level);
 
 typedef json_gen_cb json_array_begin_cb;
 typedef json_gen_cb json_array_end_cb;
@@ -90,6 +107,32 @@ typedef json_gen_cb json_hash_end_cb;
 typedef json_gen_cb json_hash_begin_entry_cb;
 typedef json_gen_cb json_hash_end_entry_cb;
 typedef json_gen_cb json_null_cb;
+
+/*
+    int string_callback(void * cb_data, const char * data, uint data_len, uint flags, uint level);
+
+    int number_callback(void * cb_data, const char * data, uint data_len, uint flags, uint level);
+
+    int array_begin_callback(void * cb_data, uint flags, uint level);
+
+    int array_element_begin_callback(void * cb_data, uint flags, uint level);
+
+    int array_element_end_callback(void * cb_data, uint flags, uint level);
+
+    int array_end_callback(void * cb_data, uint flags, uint level);
+
+    int hash_begin_callback(void * cb_data, uint flags, uint level);
+
+    int hash_entry_begin_callback(void * cb_data, uint flags, uint level);
+
+    int hash_entry_end_callback(void * cb_data, uint flags, uint level);
+
+    int hash_end_callback(void * cb_data, uint flags, uint level);
+
+    int bool_callback(void * cb_data, uint bool_val, uint flags, uint level);
+
+    int null_callback(void * cb_data, uint flags, uint level);
+*/
 
 int jsonevt_set_cb_data(jsonevt_ctx * ctx, void * data);
 
@@ -134,6 +177,25 @@ uint jsonevt_get_stats_char_count(jsonevt_ctx * ctx);
 
 void jsonevt_get_version(uint *major, uint *minor, uint *patch);
 
+typedef struct {
+    char *data;
+    uint size;
+    uint allocated;
+} jsonevt_datum;
+
+typedef struct {
+    jsonevt_datum key;
+    jsonevt_datum val;
+} jsonevt_he_pair;
+
+int jsonevt_util_parse_hash(const char *json_str, uint json_str_size, jsonevt_he_pair **ret_val,
+    uint *num_entries, char **error);
+
+#define JSONEVT_SET_DATUM(datum, buf, size) (datum)->data = buf; (datum)->size = size; \
+    (datum)->allocated = 1;
+
+void jsonevt_util_free_hash(jsonevt_he_pair *hash);
+
 /* Use these inside a callback to find out where the parser is in the buffer/file. */
 /* These will be implemented later. */
 /*
@@ -155,6 +217,8 @@ uint jsonevt_get_byte_pos(json_ctx * ctx);
 #define JSON_EVT_IS_CPLUSPLUS_COMMENT (1 << 7)
 #define JSON_EVT_IS_PERL_COMMENT      (1 << 8)
 
+/* print names of the above flags that are in "flags" to stderr */
+int jsonevt_print_flags(uint flags, FILE *fp);
 
 #define JSON_EVT_OPTION_NONE                    0
 
@@ -165,9 +229,18 @@ uint jsonevt_get_byte_pos(json_ctx * ctx);
 
 /* #define JSON_EVT_OPTION_CONVERT_BOOL             1 */
 
-#define JSON_EVT_MAJOR_VERSION 0
-#define JSON_EVT_MINOR_VERSION 0
-#define JSON_EVT_PATCH_LEVEL 9
+#define JSONEVT_ERR_UNEXPECTED_HASH 1000
+#define JSONEVT_ERR_UNEXPECTED_ARRAY 1001
+#define JSONEVT_ERR_UNEXPECTED_BOOL 1002
+#define JSONEVT_ERR_UNEXPECTED_NULL 1003
+#define JSONEVT_ERR_UNEXPECTED_STRING 1004
+#define JSONEVT_ERR_UNEXPECTED_NUMBER 1005
+
+
+/* defined in jsonevt_config.h, taken from autoconf values in config.h */
+#define JSON_EVT_MAJOR_VERSION JSONEVT_MAJOR_VERSION
+#define JSON_EVT_MINOR_VERSION JSONEVT_MINOR_VERSION
+#define JSON_EVT_PATCH_LEVEL JSONEVT_PATCH_VERSION
 
 /* writer */
 
@@ -209,7 +282,7 @@ char * jsonevt_hash_get_string(jsonevt_hash * hash, size_t * length_ptr);
 void jsonevt_hash_disown_buffer(jsonevt_hash *hash);
 int jsonevt_hash_add_data(jsonevt_hash *dest, jsonevt_writer_data *src, char *key, size_t key_len);
 
-/* utility only -- not for normal use */
+/* utility -- be careful when generating your own JSON */
 char * jsonevt_escape_c_buffer(char *in_buf, size_t length_in, size_t *length_out,
     unsigned long options);
 

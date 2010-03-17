@@ -3,7 +3,7 @@
  */
 
 /*
-Copyright (c) 2007-2009 Don Owens <don@regexguy.com>.  All rights reserved.
+Copyright (c) 2007-2010 Don Owens <don@regexguy.com>.  All rights reserved.
 
  This is free software; you can redistribute it and/or modify it under
  the Perl Artistic license.  You should have received a copy of the
@@ -81,6 +81,8 @@ extern "C" {
 #define MOD_NAME "JSON::DWIW"
 #define MOD_VERSION VERSION
 
+/*
+
 #ifdef JSONEVT_HAVE_FULL_VARIADIC_MACROS
 
 #if JSON_DO_DEBUG
@@ -88,7 +90,6 @@ extern "C" {
 #else
 #define JSON_DEBUG(...)
 #endif
-
 #if JSON_DO_TRACE
 #define JSON_TRACE(...) printf("%s (%d) - ", __FILE__, __LINE__); printf(__VA_ARGS__); printf("\n"); fflush(stdout)
 #else
@@ -98,7 +99,9 @@ extern "C" {
 #else
 void JSON_DEBUG(char *fmt, ...);
 void JSON_TRACE(char *fmt, ...);
-#endif /* JSONEVT_HAVE_FULL_VARIADIC_MACROS */
+#endif
+*/
+ /* JSONEVT_HAVE_FULL_VARIADIC_MACROS */
 
 
 #ifndef UTF8_IS_INVARIANT
