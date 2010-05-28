@@ -1,7 +1,7 @@
 # Creation date: 2007-02-19 16:54:44
 # Authors: don
 #
-# Copyright (c) 2007-2009 Don Owens <don@regexguy.com>.  All rights reserved.
+# Copyright (c) 2007-2010 Don Owens <don@regexguy.com>.  All rights reserved.
 #
 # This is free software; you can redistribute it and/or modify it under
 # the Perl Artistic license.  You should have received a copy of the
@@ -14,7 +14,7 @@
 # warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
 # PURPOSE.
 
-# $Revision: 1500 $
+# $Revision: 1630 $
 
 =pod
 
@@ -28,29 +28,29 @@ JSON::DWIW - JSON converter that Does What I Want
  my $json_obj = JSON::DWIW->new;
  my $data = $json_obj->from_json($json_str);
  my $str = $json_obj->to_json($data);
-
+ 
  my ($data, $error_string) = $json_obj->from_json($json_str);
-
+ 
  my $data = JSON::DWIW::deserialize($json_str);
  my $error_str = JSON::DWIW::get_error_string;
-
+ 
  use JSON::DWIW qw/deserialize_json from_json/
  my $data = deserialize_json($json_str);
  my $error_str = JSON::DWIW::get_error_string;
-
+ 
  my $error_string = $json_obj->get_error_string;
  my $error_data = $json_obj->get_error_data;
  my $stats = $json_obj->get_stats;
-
+ 
  my $data = $json_obj->from_json_file($file)
  my $ok = $json_obj->to_json_file($data, $file);
-
+ 
  my $data = JSON::DWIW->from_json($json_str);
  my $str = JSON:DWIW->to_json($data);
-
+ 
  my $data = JSON::DWIW->from_json($json_str, \%options);
  my $str = JSON::DWIW->to_json($data, \%options);
-
+ 
  my $true_value = JSON::DWIW->true;
  my $false_value = JSON::DWIW->false;
  my $data = { var1 => "stuff", var2 => $true_value,
@@ -64,7 +64,7 @@ Other JSON modules require setting several parameters before
 calling the conversion methods to do what I want.  This module
 does things by default that I think should be done when working
 with JSON in Perl.  This module also encodes and decodes faster
-than JSON.pm and JSON::Syck in my benchmarks.
+than L<JSON>.pm and L<JSON::Syck> in my benchmarks.
 
 This means that any piece of data in Perl (assuming it's valid
 unicode) will get converted to something in JSON instead of
@@ -73,13 +73,15 @@ JSON, while accepted input will be flexible, without having to
 set any options.
 
 For a list of changes in recent versions, see the documentation
-for JSON::DWIW::Changes.
+for L<JSON::DWIW::Changes>.
+
+This module can be downloaded from L<http://www.cpan.org/authors/id/D/DO/DOWENS/>.
 
 =head2 Encoding
 
 Perl objects get encoded as their underlying data structure, with
-the exception of Math::BigInt and Math::BigFloat, which will be
-output as numbers, and JSON::DWIW::Boolean, which will get output
+the exception of L<Math::BigInt> and L<Math::BigFloat>, which will be
+output as numbers, and L<JSON::DWIW::Boolean>, which will get output
 as a true or false value (see the true() and false() methods).
 For example, a blessed hash ref will be represented as an object
 in JSON, a blessed array will be represented as an array. etc.  A
@@ -101,8 +103,8 @@ there will be a serialize function that is a rewrite of to_json.
 
 Input is expected to utf-8.  When decoding, null, true, and false
 become undef, 1, and 0, repectively.  Numbers that appear to be
-too long to be supported natively are converted to Math::BigInt
-or Math::BigFloat objects, if you have them installed.
+too long to be supported natively are converted to L<Math::BigInt>
+or L<Math::BigFloat> objects, if you have them installed.
 Otherwise, long numbers are turned into strings to prevent data
 loss.
 
@@ -115,11 +117,15 @@ things not in the JSON spec:
 
 Both single and double quotes are allowed for quoting a string, e.g.,
 
+=for pod2rst next-code-block: javascript
+
     [ "string1", 'string2' ]
 
 =item bare keys
 
 Object/hash keys can be bare if they look like an identifier, e.g.,
+
+=for pod2rst next-code-block: javascript
 
     { var1: "myval1", var2: "myval2" }
 
@@ -127,9 +133,11 @@ Object/hash keys can be bare if they look like an identifier, e.g.,
 
 Extra commas in objects/hashes and arrays are ignored, e.g.,
 
+=for pod2rst next-code-block: javascript
+
     [1,2,3,,,4,]
 
- becomes a 4 element array containing 1, 2, 3, and 4.
+becomes a 4 element array containing 1, 2, 3, and 4.
 
 =item escape sequences
 
@@ -140,8 +148,11 @@ Javascript.  Also, the vertical tab escape \v is recognized (\u000b).
 
 C, C++, and shell-style comments are accepted.  That is
 
+=for pod2rst next-code-block: c++
+
  /* this is a comment */
  // this is a comment
+
  # this is also a comment
 
 =back
@@ -173,7 +184,7 @@ require DynaLoader;
 Exporter::export_ok_tags('all');
 
 # change in POD as well!
-our $VERSION = '0.40';
+our $VERSION = '0.41';
 
 JSON::DWIW->bootstrap($VERSION);
 
@@ -223,7 +234,7 @@ sub import {
 
 =head2 new(\%options)
 
-Create a new JSON::DWIW object.
+Create a new L<JSON::DWIW> object.
 
 %options is an optional hash of parameters that will change the
 bahavior of this module when encoding to JSON.  You may also
@@ -232,9 +243,9 @@ from_json().  The following options are supported:
 
 =head3 bare_keys
 
- If set to a true value, keys in hashes will not be quoted when
- converted to JSON if they look like identifiers.  This is valid
- Javascript in current browsers, but not in JSON.
+If set to a true value, keys in hashes will not be quoted when
+converted to JSON if they look like identifiers.  This is valid
+Javascript in current browsers, but not in JSON.
 
 =head3 use_exceptions
 
@@ -282,7 +293,7 @@ output easier for humans to read.
 
 When converting from JSON, return objects for booleans so that
 "true" and "false" can be maintained when encoding and decoding.
-If this flag is set, then "true" becomes a JSON::DWIW::Boolean
+If this flag is set, then "true" becomes a L<JSON::DWIW::Boolean>
 object that evaluates to true in a boolean context, and "false"
 becomes an object that evaluates to false in a boolean context.
 These objects are recognized by the to_json() method, so they
@@ -310,7 +321,7 @@ E.g.,
 
   my $json = '{ "a": 6.3e-10 }';
   my $cb = sub { my ($val) = @_; return "I got the number '$val'"; };
-
+ 
   my $data = JSON::DWIW::deserialize($json, { parse_number => $cb });
 
 =head3 parse_constant
@@ -362,12 +373,12 @@ to to_json() that is a reference to a hash of options -- see
 new().
 
      my $json_str = JSON::DWIW->to_json($data);
-
+ 
      my ($json_str, $error_msg) = JSON::DWIW->to_json($data);
-
+ 
      my $json_str = JSON::DWIW->to_json($data, { use_exceptions => 1 });
 
- Aliases: toJson, toJSON, objToJson
+Aliases: toJson, toJSON, objToJson
 
 =cut
 
@@ -473,9 +484,9 @@ value for true becomes 1, false becomes 0, and null gets
 converted to undef.
 
 This function should not be called as a method (for performance
-reasons).  Unlike from_json(), it returns a single value, the
+reasons).  Unlike C<from_json()>, it returns a single value, the
 data structure resulting from the conversion.  If the return
-value is undef, check the result of the get_error_string()
+value is undef, check the result of the C<get_error_string()>
 function/method to see if an error is defined.
 
 =head2 deserialize_file($file, \%options)
@@ -490,21 +501,21 @@ into memory all at once, and does less buffer copying.
 
 =head2 from_json
 
-Similar to deserialize(), but expects to be called as a method.
+Similar to C<deserialize()>, but expects to be called as a method.
 
 Called in list context, this method returns a list whose first
 element is the data and the second element is the error message,
-if any.  If $error_msg is defined, there was a problem parsing
-the JSON string, and $data will be undef.  You may also pass a
-second argument to from_json() that is a reference to a hash of
-options -- see new().
+if any.  If C<$error_msg> is defined, there was a problem parsing
+the JSON string, and C<$data> will be undef.  You may also pass a
+second argument to C<from_json()> that is a reference to a hash of
+options -- see C<new()>.
 
      my $data = from_json($json_str)
-
+ 
      my ($data, $error_msg) = from_json($json_str)
 
 
- Aliases: fromJson, fromJSON, jsonToObj
+Aliases: fromJson, fromJSON, jsonToObj
 
 =cut
 
@@ -564,7 +575,7 @@ sub from_json {
 
 =head2 from_json_file
 
-Similar to deserialize_file(), except that it expects to be
+Similar to C<deserialize_file()>, except that it expects to be
 called a a method, and it also returns the error, if any, when called
 in list context.
 
@@ -620,7 +631,7 @@ sub from_json_file {
 
 =head2 to_json_file
 
-Converts $data to JSON and writes the result to the file $file.
+Converts C<$data> to JSON and writes the result to the file C<$file>.
 Currently, this is simply a convenience routine that converts
 the data to a JSON string and then writes it to the file.
 
@@ -722,7 +733,7 @@ Returns the error message from the last call, if there was one, e.g.,
 
  my $data = JSON::DWIW->from_json($json_str)
      or die "JSON error: " . JSON::DWIW->get_error_string;
-
+ 
  my $data = $json_obj->from_json($json_str)
      or die "JSON error: " . $json_obj->get_error_string;
 
@@ -779,7 +790,7 @@ sub get_error_data {
 =head2 get_stats
 
 Returns statistics from the last method called to encode or
-decode.  E.g., for an encoding (to_json() or to_json_file()),
+decode.  E.g., for an encoding (C<to_json()> or C<to_json_file()>),
 
     $stats = {
                'bytes' => 78,
@@ -843,6 +854,22 @@ sub _escape_xml_body {
     $text =~ s/\&/\&amp;/g;
     $text =~ s/</\&lt;/g;
     $text =~ s/>/\&gt;/g;
+
+    return $text;
+}
+
+sub _escape_xml_attr {
+    my ($text) = @_;
+    return undef unless defined $text;
+
+    # FIXME: benchmark this and test fully
+    #         $text =~ s/([&<>"'])/$Escape_Map->{$1}/eg;
+    #         return $text;
+        
+    $text =~ s/\&/\&amp;/g;
+    $text =~ s/</\&lt;/g;
+    $text =~ s/>/\&gt;/g;
+    $text =~ s/\"/\&quot;/g;
 
     return $text;
 }
@@ -925,12 +952,12 @@ This function (not a method) converts the given JSON to XML.
 Hash/object keys become tag names.  Arrays that are hash values
 are output as multiple tags with the hash key as the tag name.
 
-Any characters in hash keys not in [\w-] (i.e., letters, numbers,
+Any characters in hash keys not in C<[\w-]> (i.e., letters, numbers,
 underscore, or dash), get converted to underscore ("_") when
 output as XML tags.
 
-Valid parameters in \%params are the same as for passing
-to deserialize() or from_json(), plus the "pretty" option, which
+Valid parameters in C<\%params> are the same as for passing
+to C<deserialize()> or C<from_json()>, plus the C<pretty> option, which
 will add newlines and indentation to the XML to make it more
 human-readable.
 
@@ -953,6 +980,55 @@ sub json_to_xml {
     }
 
     return _data_to_xml($data, $params);
+}
+
+sub jsonml_to_xml {
+    my ($jsonml) = @_;
+
+    my $elements = JSON::DWIW::deserialize($jsonml);
+    return undef unless defined $elements;
+
+    return _jsonml_xml($elements);
+}
+
+sub _jsonml_xml {
+    my ($elements) = @_;
+
+    unless (ref($elements)) {
+        # string
+        return _escape_xml_body($elements);
+    }
+
+    my $name = $elements->[0];
+    my $attrs = $elements->[1];
+    my $attr_str = '';
+
+    my @rest;
+    if (defined $attrs and UNIVERSAL::isa($attrs, 'HASH')) {
+        my @keys = sort keys %$attrs;
+        my @pairs = map { qq{$_="} . _escape_xml_attr($attrs->{$_}) . qq{"} } @keys;
+        $attr_str = ' ' . join(' ', @pairs);
+        @rest = @$elements[2 .. $#$elements];
+    }
+    else {
+        $attrs = undef;
+        @rest = @$elements[1 .. $#$elements];
+    }
+    
+    my $xml = "<$name$attr_str";
+
+    if (@rest) {
+        $xml .= '>';
+        foreach my $e (@rest) {
+            $xml .= _jsonml_xml($e);
+        }
+        $xml .= "</$name>";
+    }
+    else {
+        $xml .= '/>';
+    }
+
+    return $xml;
 }
 
 =pod
@@ -1011,7 +1087,7 @@ Perl 5.6 or later
 =head1 BUGS/LIMITATIONS
 
 If you find a bug, please file a tracker request at
-<http://rt.cpan.org/Public/Dist/Display.html?Name=JSON-DWIW>.
+L<http://rt.cpan.org/Public/Dist/Display.html?Name=JSON-DWIW>.
 
 When decoding a JSON string, it is a assumed to be utf-8 encoded.
 The module should detect whether the input is utf-8, utf-16, or
@@ -1035,7 +1111,7 @@ Thanks to Josh for helping debug [rt.cpan.org #47344].
 
 =head1 LICENSE AND COPYRIGHT
 
-Copyright (c) 2007-2009 Don Owens <don@regexguy.com>.  All rights reserved.
+Copyright (c) 2007-2010 Don Owens <don@regexguy.com>.  All rights reserved.
 
 This is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.  See perlartistic.
@@ -1047,16 +1123,23 @@ PURPOSE.
 
 =head1 SEE ALSO
 
- The JSON home page: L<http://json.org/>
- The JSON spec: L<http://www.ietf.org/rfc/rfc4627.txt>
- The JSON-RPC spec: L<http://json-rpc.org/wd/JSON-RPC-1-1-WD-20060807.html>
+=over 4
 
- L<JSON>
- L<JSON::Syck> (included in L<YAML::Syck>)
+=item The JSON home page: L<http://json.org/>
+
+=item The JSON spec: L<http://www.ietf.org/rfc/rfc4627.txt>
+
+=item  The JSON-RPC spec: L<http://json-rpc.org/wd/JSON-RPC-1-1-WD-20060807.html>
+
+=item L<JSON>
+
+=item L<JSON::Syck> (included in L<YAML::Syck>)
+
+=back
 
 =head1 VERSION
 
-0.40
+0.40.1
 
 =cut
 

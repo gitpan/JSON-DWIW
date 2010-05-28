@@ -14,15 +14,15 @@
 
 */
 
-/* $Header: /repository/projects/libjsonevt/utf32.h,v 1.3 2009-02-23 17:46:55 don Exp $ */
+/* $Revision: 1568 $ */
 
 
 #ifndef UTF32_H
 #define UTF32_H
 
-#include "uni.h"
+#include <uni.h>
 
-#include "int_defs.h"
+#include <int_defs.h>
 
 UNI_DO_CPLUSPLUS_WRAP_BEGIN
 

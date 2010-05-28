@@ -1,7 +1,7 @@
 # Creation date: 2007-05-10 20:29:02
 # Authors: don
 #
-# Copyright (c) 2007 Don Owens <don@regexguy.com>.  All rights reserved.
+# Copyright (c) 2007-2010 Don Owens <don@regexguy.com>.  All rights reserved.
 #
 # This is free software; you can redistribute it and/or modify it under
 # the Perl Artistic license.  You should have received a copy of the
@@ -18,33 +18,32 @@
 
 =head1 NAME
 
- JSON::DWIW::Boolean - Return a true or false value when
-                       evaluated in boolean context -- to be used
-                       with JSON::DWIW->encode() to explicitly
-                       specify a boolean value.`
+JSON::DWIW::Boolean - Return a true or false value when evaluated
+in boolean context -- to be used with JSON::DWIW->encode() to
+explicitly specify a boolean value.`
 
 =head1 SYNOPSIS
 
  use JSON::DWIW;
  my $val1 = JSON::DWIW->true;
  my $val2 = JSON::DWIW->false;
-
-     or
-
+ 
+ # or
+ 
  use JSON::DWIW::Boolean;
  my $val1 = JSON::DWIW::Boolean->new(1); # true value
  my $val2 = JSON::DWIW::Boolean->new(0); # false value
 
 =head1 DESCRIPTION
 
- This module is not intended to be used directly.  It is intended
- to be used as part of JSON::DWIW to specify that a true or false
- value should be output when converting to JSON, since Perl does
- not have explicit values for true and false.
+This module is not intended to be used directly.  It is intended
+to be used as part of L<JSON::DWIW> to specify that a true or false
+value should be output when converting to JSON, since Perl does
+not have explicit values for true and false.
 
- Overloading is used, so if a JSON::DWIW::Boolean object is
- evaluated in boolean context, it will evaluate to 1 or 0,
- depending on whether the object was initialized to true or false.
+Overloading is used, so if a L<JSON::DWIW::Boolean> object is
+evaluated in boolean context, it will evaluate to 1 or 0,
+depending on whether the object was initialized to true or false.
 
 =cut
 
@@ -67,9 +66,9 @@ our $VERSION = sprintf("%d.%02d",(q$Revision: 1.4 $ =~ /\d+/g));
 
 =head1 METHODS
 
-=head2 new($val)
+=head2 C<new($val)>
 
- Return an object initialized with $val as its boolean value.
+Returns an object initialized with $val as its boolean value.
 
 =cut
 
@@ -86,9 +85,9 @@ sub new {
 
 =pod
 
-=head2 true()
+=head2 C<true()>
 
- Class method that returns a new object initialized to a true value.
+Class method that returns a new object initialized to a true value.
 
 =cut
 
@@ -99,9 +98,9 @@ sub true {
 
 =pod
 
-=head2 false()
+=head2 C<false()>
 
- Class method that returns a new object initialized to a false value.
+Class method that returns a new object initialized to a false value.
 
 =cut
 
@@ -123,19 +122,13 @@ sub as_bool {
 
 =pod
 
-=head1 EXAMPLES
-
-
-=head1 DEPENDENCIES
-
-
 =head1 AUTHOR
 
 Don Owens <don@regexguy.com>
 
 =head1 LICENSE AND COPYRIGHT
 
-Copyright (c) 2007 Don Owens <don@regexguy.com>.  All rights reserved.
+Copyright (c) 2007-2010 Don Owens <don@regexguy.com>.  All rights reserved.
 
 This is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.  See perlartistic.
@@ -144,13 +137,6 @@ This program is distributed in the hope that it will be
 useful, but WITHOUT ANY WARRANTY; without even the implied
 warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
 PURPOSE.
-
-=head1 SEE ALSO
-
-
-=head1 VERSION
-
- 0.01
 
 =cut
 

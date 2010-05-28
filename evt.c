@@ -10,7 +10,7 @@ warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
 PURPOSE.
 */
 
-/* $Revision: 1474 $ */
+/* $Revision: 1571 $ */
 
 /* TODO:
    
@@ -951,7 +951,13 @@ handle_parse_result(int result, jsonevt_ctx * ctx, perl_wrapper_ctx * wctx) {
         sv_setsv(tmp_sv, error_msg);
         SvREFCNT_dec(error_msg);
 
-        croak(Nullch); /* FIXME: check this -- gives warnings on 64-bit fedora 11 cuz passing null */
+        if (error) {
+            croak("%s v%s %s", MOD_NAME, XS_VERSION, error);
+        }
+        else {
+            croak("%s v%s - error", MOD_NAME, XS_VERSION);
+        }
+
     }
 
     SvREFCNT_dec(error_msg);

@@ -7,14 +7,13 @@
 #ifndef INT_DEFS_H
 #define INT_DEFS_H
 
-#include "jsonevt_config.h"
+#include <jsonevt_config.h>
 
 #ifdef JSONEVT_DEF_HAVE_INTTYPES_H
 #include <inttypes.h>
-#else
+#endif
 #ifdef JSONEVT_DEF_HAVE_STDINT_H
 #include <stdint.h>
-#endif
 #endif
 
 /*

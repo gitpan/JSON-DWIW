@@ -7,6 +7,16 @@ JSON::DWIW::Changes - List of significant changes to JSON::DWIW
 
 =head1 CHANGES
 
+=head2 Version 0.41
+
+=over 4
+
+=item Fixed configuration problem for libjsonevt on Mac OS X
+
+=item Documentation formatting fixes.
+
+=back
+
 =head2 Version 0.40
 
 =over 4

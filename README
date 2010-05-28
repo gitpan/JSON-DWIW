@@ -6,30 +6,30 @@ SYNOPSIS
      my $json_obj = JSON::DWIW->new;
      my $data = $json_obj->from_json($json_str);
      my $str = $json_obj->to_json($data);
-
-     my ($data, $error_string) = $json_obj->from_json($json_str);
-
-     my $data = JSON::DWIW::deserialize($json_str);
+     
+ my ($data, $error_string) = $json_obj->from_json($json_str);
+     
+ my $data = JSON::DWIW::deserialize($json_str);
      my $error_str = JSON::DWIW::get_error_string;
-
-     use JSON::DWIW qw/deserialize_json from_json/
+     
+ use JSON::DWIW qw/deserialize_json from_json/
      my $data = deserialize_json($json_str);
      my $error_str = JSON::DWIW::get_error_string;
-
-     my $error_string = $json_obj->get_error_string;
+     
+ my $error_string = $json_obj->get_error_string;
      my $error_data = $json_obj->get_error_data;
      my $stats = $json_obj->get_stats;
-
-     my $data = $json_obj->from_json_file($file)
+     
+ my $data = $json_obj->from_json_file($file)
      my $ok = $json_obj->to_json_file($data, $file);
-
-     my $data = JSON::DWIW->from_json($json_str);
+     
+ my $data = JSON::DWIW->from_json($json_str);
      my $str = JSON:DWIW->to_json($data);
-
-     my $data = JSON::DWIW->from_json($json_str, \%options);
+     
+ my $data = JSON::DWIW->from_json($json_str, \%options);
      my $str = JSON::DWIW->to_json($data, \%options);
-
-     my $true_value = JSON::DWIW->true;
+     
+ my $true_value = JSON::DWIW->true;
      my $false_value = JSON::DWIW->false;
      my $data = { var1 => "stuff", var2 => $true_value,
                   var3 => $false_value, };
@@ -49,6 +49,9 @@ DESCRIPTION
 
     For a list of changes in recent versions, see the documentation for
     JSON::DWIW::Changes.
+
+    This module can be downloaded from
+    <http://www.cpan.org/authors/id/D/DO/DOWENS/>.
 
   Encoding
     Perl objects get encoded as their underlying data structure, with the
@@ -96,7 +99,7 @@ DESCRIPTION
 
             [1,2,3,,,4,]
 
-         becomes a 4 element array containing 1, 2, 3, and 4.
+        becomes a 4 element array containing 1, 2, 3, and 4.
 
     escape sequences
         Latin1 hexadecimal escape sequences (\xHH) are accepted, as in
@@ -107,6 +110,7 @@ DESCRIPTION
 
          /* this is a comment */
          // this is a comment
+
          # this is also a comment
 
 METHODS
@@ -119,9 +123,9 @@ METHODS
     are supported:
 
    bare_keys
-     If set to a true value, keys in hashes will not be quoted when
-     converted to JSON if they look like identifiers.  This is valid
-     Javascript in current browsers, but not in JSON.
+    If set to a true value, keys in hashes will not be quoted when converted
+    to JSON if they look like identifiers. This is valid Javascript in
+    current browsers, but not in JSON.
 
    use_exceptions
     If set to a true value, errors found when converting to or from JSON
@@ -185,8 +189,8 @@ METHODS
 
       my $json = '{ "a": 6.3e-10 }';
       my $cb = sub { my ($val) = @_; return "I got the number '$val'"; };
-
-      my $data = JSON::DWIW::deserialize($json, { parse_number => $cb });
+     
+  my $data = JSON::DWIW::deserialize($json, { parse_number => $cb });
 
    parse_constant
     A subroutine reference to call when parsing a constant (true, false, or
@@ -206,22 +210,22 @@ METHODS
     reference to a hash of options -- see new().
 
          my $json_str = JSON::DWIW->to_json($data);
+     
+     my ($json_str, $error_msg) = JSON::DWIW->to_json($data);
+     
+     my $json_str = JSON::DWIW->to_json($data, { use_exceptions => 1 });
 
-         my ($json_str, $error_msg) = JSON::DWIW->to_json($data);
-
-         my $json_str = JSON::DWIW->to_json($data, { use_exceptions => 1 });
-
-     Aliases: toJson, toJSON, objToJson
+    Aliases: toJson, toJSON, objToJson
 
   deserialize($json_str, \%options)
     Returns the Perl data structure for the given JSON string. The value for
     true becomes 1, false becomes 0, and null gets converted to undef.
 
     This function should not be called as a method (for performance
-    reasons). Unlike from_json(), it returns a single value, the data
+    reasons). Unlike "from_json()", it returns a single value, the data
     structure resulting from the conversion. If the return value is undef,
-    check the result of the get_error_string() function/method to see if an
-    error is defined.
+    check the result of the "get_error_string()" function/method to see if
+    an error is defined.
 
   deserialize_file($file, \%options)
     Same as deserialize, except that it takes a file as an argument. On
@@ -229,23 +233,22 @@ METHODS
     all at once, and does less buffer copying.
 
   from_json
-    Similar to deserialize(), but expects to be called as a method.
+    Similar to "deserialize()", but expects to be called as a method.
 
     Called in list context, this method returns a list whose first element
     is the data and the second element is the error message, if any. If
     $error_msg is defined, there was a problem parsing the JSON string, and
-    $data will be undef. You may also pass a second argument to from_json()
-    that is a reference to a hash of options -- see new().
+    $data will be undef. You may also pass a second argument to
+    "from_json()" that is a reference to a hash of options -- see "new()".
 
          my $data = from_json($json_str)
+     
+     my ($data, $error_msg) = from_json($json_str)
 
-         my ($data, $error_msg) = from_json($json_str)
-
-
-     Aliases: fromJson, fromJSON, jsonToObj
+    Aliases: fromJson, fromJSON, jsonToObj
 
   from_json_file
-    Similar to deserialize_file(), except that it expects to be called a a
+    Similar to "deserialize_file()", except that it expects to be called a a
     method, and it also returns the error, if any, when called in list
     context.
 
@@ -263,8 +266,8 @@ METHODS
 
      my $data = JSON::DWIW->from_json($json_str)
          or die "JSON error: " . JSON::DWIW->get_error_string;
-
-     my $data = $json_obj->from_json($json_str)
+     
+ my $data = $json_obj->from_json($json_str)
          or die "JSON error: " . $json_obj->get_error_string;
 
     Aliases: get_err_str(), errstr()
@@ -287,7 +290,7 @@ METHODS
 
   get_stats
     Returns statistics from the last method called to encode or decode.
-    E.g., for an encoding (to_json() or to_json_file()),
+    E.g., for an encoding ("to_json()" or "to_json_file()"),
 
         $stats = {
                    'bytes' => 78,
@@ -317,13 +320,13 @@ METHODS
     keys become tag names. Arrays that are hash values are output as
     multiple tags with the hash key as the tag name.
 
-    Any characters in hash keys not in [\w-] (i.e., letters, numbers,
+    Any characters in hash keys not in "[\w-]" (i.e., letters, numbers,
     underscore, or dash), get converted to underscore ("_") when output as
     XML tags.
 
-    Valid parameters in \%params are the same as for passing to
-    deserialize() or from_json(), plus the "pretty" option, which will add
-    newlines and indentation to the XML to make it more human-readable.
+    Valid parameters in "\%params" are the same as for passing to
+    "deserialize()" or "from_json()", plus the "pretty" option, which will
+    add newlines and indentation to the XML to make it more human-readable.
 
 Utilities
     Following are some methods I use for debugging and testing.
@@ -392,7 +395,7 @@ ACKNOWLEDGEMENTS
     Thanks to Josh for helping debug [rt.cpan.org #47344].
 
 LICENSE AND COPYRIGHT
-    Copyright (c) 2007-2009 Don Owens <don@regexguy.com>. All rights
+    Copyright (c) 2007-2010 Don Owens <don@regexguy.com>. All rights
     reserved.
 
     This is free software; you can redistribute it and/or modify it under
@@ -403,13 +406,13 @@ LICENSE AND COPYRIGHT
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 SEE ALSO
-     The JSON home page: L<http://json.org/>
-     The JSON spec: L<http://www.ietf.org/rfc/rfc4627.txt>
-     The JSON-RPC spec: L<http://json-rpc.org/wd/JSON-RPC-1-1-WD-20060807.html>
-
-     L<JSON>
-     L<JSON::Syck> (included in L<YAML::Syck>)
+    The JSON home page: <http://json.org/>
+    The JSON spec: <http://www.ietf.org/rfc/rfc4627.txt>
+    The JSON-RPC spec:
+    <http://json-rpc.org/wd/JSON-RPC-1-1-WD-20060807.html>
+    JSON
+    JSON::Syck (included in YAML::Syck)
 
 VERSION
-    0.40
+    0.40.1
 

@@ -644,8 +644,8 @@ jsonevt_do_unit_tests() {
     length_in = strlen(test_buf);
     rv = jsonevt_escape_c_buffer(test_buf, length_in, &length_out,
         JSON_EVT_OPTION_NONE);
-    printf("\tin (%u bytes): %s\n", length_in, test_buf);
-    printf("\tout (%u bytes): %s\n", length_out, rv);
+    printf("\tin (%u bytes): %s\n", (unsigned int)length_in, test_buf);
+    printf("\tout (%u bytes): %s\n", (unsigned int)length_out, rv);
 
     return 0;
 }

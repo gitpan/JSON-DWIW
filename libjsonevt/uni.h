@@ -18,12 +18,12 @@
 
 */
 
-/* $Header: /repository/projects/libjsonevt/uni.h,v 1.4 2009-02-23 17:46:55 don Exp $ */
+/* $Revision$ */
 
 #ifndef UNI_H
 #define UNI_H
 
-#include "int_defs.h"
+#include <int_defs.h>
 
 #ifdef __cplusplus
 #define UNI_DO_CPLUSPLUS_WRAP_BEGIN extern "C" {
