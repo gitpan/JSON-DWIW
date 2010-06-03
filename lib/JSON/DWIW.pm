@@ -14,7 +14,7 @@
 # warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
 # PURPOSE.
 
-# $Revision: 1630 $
+# $Revision: 1641 $
 
 =pod
 
@@ -32,11 +32,11 @@ JSON::DWIW - JSON converter that Does What I Want
  my ($data, $error_string) = $json_obj->from_json($json_str);
  
  my $data = JSON::DWIW::deserialize($json_str);
- my $error_str = JSON::DWIW::get_error_string;
+ my $error_str = JSON::DWIW::get_error_string();
  
  use JSON::DWIW qw/deserialize_json from_json/
  my $data = deserialize_json($json_str);
- my $error_str = JSON::DWIW::get_error_string;
+ my $error_str = JSON::DWIW::get_error_string();
  
  my $error_string = $json_obj->get_error_string;
  my $error_data = $json_obj->get_error_data;
@@ -46,7 +46,7 @@ JSON::DWIW - JSON converter that Does What I Want
  my $ok = $json_obj->to_json_file($data, $file);
  
  my $data = JSON::DWIW->from_json($json_str);
- my $str = JSON:DWIW->to_json($data);
+ my $str = JSON::DWIW->to_json($data);
  
  my $data = JSON::DWIW->from_json($json_str, \%options);
  my $str = JSON::DWIW->to_json($data, \%options);
@@ -184,7 +184,7 @@ require DynaLoader;
 Exporter::export_ok_tags('all');
 
 # change in POD as well!
-our $VERSION = '0.41';
+our $VERSION = '0.42';
 
 JSON::DWIW->bootstrap($VERSION);
 
@@ -1072,7 +1072,7 @@ Returns a string representing the byte sequence for $cp encoding in utf-8.  E.g.
 
 Returns a reference to an array of code points from the given string, assuming the string is encoded in utf-8.
 
-=head2 peak_scalar($scalar)
+=head2 peek_scalar($scalar)
 
 Dumps the internal structure of the given scalar.
 
@@ -1139,7 +1139,7 @@ PURPOSE.
 
 =head1 VERSION
 
-0.40.1
+0.42
 
 =cut
 

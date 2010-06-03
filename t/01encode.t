@@ -4,7 +4,7 @@
 # Authors: don
 
 use strict;
-use Test::More tests => 16;
+use Test::More tests => 17;
 
 # main
 {
@@ -38,6 +38,12 @@ use Test::More tests => 16;
 
 
     $data = [ 1, 2, 3 ];
+    $expected_str = '[1,2,3]';
+    $json_str = $json_obj->to_json($data);
+
+    ok($json_str eq $expected_str);
+
+    # again with the same data structure to catch coersion of int to string bug
     $expected_str = '[1,2,3]';
     $json_str = $json_obj->to_json($data);
 

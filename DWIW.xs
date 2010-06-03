@@ -13,7 +13,7 @@ Copyright (c) 2007-2010 Don Owens <don@regexguy.com>.  All rights reserved.
  PURPOSE.
 */
 
-/* $Revision: 1431 $ */
+/* $Revision: 1641 $ */
 
 /* #define PERL_NO_GET_CONTEXT */
 
@@ -826,6 +826,12 @@ to_json(self_context * self, SV * data_ref, int indent_level, unsigned int cur_l
     STRLEN start = 0;
     STRLEN len = 0;
     SV * ref_tmp = NULL;
+    IV int_val = 0;
+    UV uint_val = 0;
+    /*
+    NV float_val = 0;
+    STRLEN pvlen = 0;
+    */
 
     JsDumpSv(data_ref, self->flags);
 
@@ -846,7 +852,27 @@ to_json(self_context * self, SV * data_ref, int indent_level, unsigned int cur_l
               case SVt_IV:
               case SVt_NV:
                   before_len = JsSvLen(rsv);
-                  sv_catsv(rsv, data);
+
+                  if (type == SVt_IV) {
+                      if (SvIsUV(data)) {
+                          uint_val = SvUVX(data);
+                          sv_catpvf(rsv, "%"UVuf, uint_val);
+                      }
+                      else {
+                          int_val = SvIVX(data);
+                          sv_catpvf(rsv, "%"IVdf, int_val);
+                      }
+                      
+                  }
+                  else {
+                      tmp = newSVsv(data);
+                      sv_catsv(rsv, tmp);
+                      SvREFCNT_dec(tmp);
+                      /*
+                      float_val = SvNVX(data);
+                      sv_catpvf(rsv, "%"NVgf, float_val);
+                      */
+                  }
 
                   self->number_count++;
 

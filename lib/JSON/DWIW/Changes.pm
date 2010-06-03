@@ -7,6 +7,16 @@ JSON::DWIW::Changes - List of significant changes to JSON::DWIW
 
 =head1 CHANGES
 
+=head2 Version 0.42
+
+=over 4
+
+=item Documentation fixes.
+
+=item Fixed bug where numbers got coerced to strings when encoding, such that if you call to_json() again on the same data structure, numbers would come out as stirngs.
+
+=back
+
 =head2 Version 0.41
 
 =over 4

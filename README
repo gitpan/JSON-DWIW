@@ -10,11 +10,11 @@ SYNOPSIS
  my ($data, $error_string) = $json_obj->from_json($json_str);
      
  my $data = JSON::DWIW::deserialize($json_str);
-     my $error_str = JSON::DWIW::get_error_string;
+     my $error_str = JSON::DWIW::get_error_string();
      
  use JSON::DWIW qw/deserialize_json from_json/
      my $data = deserialize_json($json_str);
-     my $error_str = JSON::DWIW::get_error_string;
+     my $error_str = JSON::DWIW::get_error_string();
      
  my $error_string = $json_obj->get_error_string;
      my $error_data = $json_obj->get_error_data;
@@ -24,7 +24,7 @@ SYNOPSIS
      my $ok = $json_obj->to_json_file($data, $file);
      
  my $data = JSON::DWIW->from_json($json_str);
-     my $str = JSON:DWIW->to_json($data);
+     my $str = JSON::DWIW->to_json($data);
      
  my $data = JSON::DWIW->from_json($json_str, \%options);
      my $str = JSON::DWIW->to_json($data, \%options);
@@ -363,7 +363,7 @@ Utilities
     Returns a reference to an array of code points from the given string,
     assuming the string is encoded in utf-8.
 
-  peak_scalar($scalar)
+  peek_scalar($scalar)
     Dumps the internal structure of the given scalar.
 
 BENCHMARKS
@@ -414,5 +414,5 @@ SEE ALSO
     JSON::Syck (included in YAML::Syck)
 
 VERSION
-    0.40.1
+    0.42
 
