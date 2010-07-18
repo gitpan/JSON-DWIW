@@ -13,7 +13,7 @@ Copyright (c) 2007-2010 Don Owens <don@regexguy.com>.  All rights reserved.
  PURPOSE.
 */
 
-/* $Revision: 1641 $ */
+/* $Revision: 1672 $ */
 
 /* #define PERL_NO_GET_CONTEXT */
 
@@ -594,6 +594,11 @@ setup_self_context(SV *self_sv, self_context *self) {
         self->flags |= kMinimalEscaping;
     }
 
+    ptr = hv_fetch((HV *)self_hash, "sort_keys", 9, 0);
+    if (ptr && SvTRUE(*ptr)) {
+        self->flags |= kSortKeys;
+    }
+
 
 #if JSON_DUMP_OPTIONS
     {
@@ -646,7 +651,7 @@ setup_self_context(SV *self_sv, self_context *self) {
 }
 
 static int
-hash_key_can_be_bare(self_context * self, U8 *key, STRLEN key_len) {
+hash_key_can_be_bare(self_context * self, const char *key, STRLEN key_len) {
     U8 this_byte;
     STRLEN i;
 
@@ -673,7 +678,256 @@ hash_key_can_be_bare(self_context * self, U8 *key, STRLEN key_len) {
 }
 
 static SV *
+_encode_hash_entry(self_context *self, int first, HE * entry, const char *key, I32 key_len,
+    SV *key_sv, SV *val, SV *rsv,
+    int indent_level, unsigned int cur_level) {
+
+    SV * tmp_sv = NULL;
+    SV * tmp_sv2 = NULL;
+    int i = 0;
+    int num_spaces;
+
+    num_spaces = (indent_level + 1) * 4;
+    
+    if (self->flags & kDumpVars) {
+        fprintf(stderr, "hash key = %s\nval:\n", key);
+    }
+    
+    if (self->flags & kPrettyPrint) {
+        sv_catpvn(rsv, "\n", 1);
+        for (i = 0; i < num_spaces; i++) {
+            sv_catpvn(rsv, " ", 1);
+        }
+    }
+
+    if (hash_key_can_be_bare(self, key, key_len)) {
+        /* if the key can be bare, then it cannot have any hi-bits
+           set, so no need to upgrade to utf-8
+        */
+        sv_catpvn(rsv, (char *)key, key_len);
+    }
+    else {
+        tmp_sv = newSVpv((char *)key, key_len);
+
+#ifdef IS_PERL_5_8
+        if (HeKWASUTF8(entry)) {
+            /* The hash key was utf-8 encoding, but the char * was
+
+            given to us with as the decoded bytes (e.g., utf-8 =>
+            latin1), so convert back to utf-8
+
+            */
+            sv_utf8_upgrade(tmp_sv);
+        }
+#endif
+
+        tmp_sv2 = escape_json_str(self, tmp_sv);
+        if (self->error) {
+            SvREFCNT_dec(tmp_sv);
+            SvREFCNT_dec(tmp_sv2);
+            SvREFCNT_dec(rsv);
+            return (SV *)&PL_sv_no;
+        }
+
+        sv_catsv(rsv, tmp_sv2);
+        SvREFCNT_dec(tmp_sv);
+        SvREFCNT_dec(tmp_sv2);
+    }
+
+    sv_catpvn(rsv, ":", 1);
+
+    tmp_sv = to_json(self, val, indent_level + 2, cur_level);
+    if (self->error) {
+        SvREFCNT_dec(tmp_sv);
+        SvREFCNT_dec(rsv);
+        return (SV *)&PL_sv_no;
+    }
+
+    sv_catsv(rsv, tmp_sv);
+    SvREFCNT_dec(tmp_sv);
+
+    return (SV *)&PL_sv_yes;
+}
+
+static SV *
 encode_hash(self_context * self, HV * hash, int indent_level, unsigned int cur_level) {
+    SV * rsv = NULL;
+    SV * sv = Nullsv;
+    SV * key_sv = Nullsv;
+    const char * key;
+    I32 key_len;
+    SV * val;
+    int first = 1;
+    int i;
+    int num_spaces = 0;
+    MAGIC * magic_ptr = NULL;
+    HE * entry;
+    SV * success = Nullsv;
+    AV * keys = Nullav;
+    SV ** svp = (SV **)0;
+    STRLEN tmp_strlen = 0;
+
+    cur_level++;
+    UPDATE_CUR_LEVEL(self, cur_level);
+
+    self->hash_count++;
+
+    if (self->flags & kPrettyPrint) {
+        if (indent_level == 0) {
+            rsv = newSVpv("{", 1);
+        }
+        else {
+            num_spaces = indent_level * 4;
+            rsv = newSV(num_spaces + 3);
+            sv_setpvn(rsv, "\n", 1);
+            for (i = 0; i < num_spaces; i++) {
+                sv_catpvn(rsv, " ", 1);
+            }
+            sv_catpvn(rsv, "{", 1);
+
+        }
+
+    }
+    else {
+        rsv = newSVpv("{", 1);
+    }
+
+    JsDumpSv((SV *)hash, self->flags);
+
+    magic_ptr = mg_find((SV *)hash, PERL_MAGIC_tied);
+    
+    num_spaces = (indent_level + 1) * 4;
+    
+    if (self->flags & kSortKeys) {
+#if PERL_VERSION < 8
+        /* old-style -- work around not ahveing sortsv() */
+        sort_keys = sv_2mortal(newSVpvn("JSON::DWIW::_sort_keys", 22));
+
+        /* FIXME: complete for Perl < 5.8 */
+        dSP; ENTER; SAVETMPS; PUSHMARK(sp);
+        XPUSHs(sv_2mortal(newRV_inc((SV *)hash))); PUTBACK;
+        i = call_sv(sort_keys, G_SCALAR | G_EVAL);
+        SPAGAIN;
+        if (i) {
+			sv = POPs;
+			if (SvROK(sv) && (SvTYPE(SvRV(sv)) == SVt_PVAV))
+			    keys = (AV*)SvREFCNT_inc(SvRV(sv));
+        }
+        UNLESS (keys) {
+			warn("Sortkeys subroutine did not return ARRAYREF\n");
+        }
+        PUTBACK; FREETMPS; LEAVE;
+
+#else
+        keys = newAV();
+        (void)hv_iterinit(hash);
+        while ((entry = hv_iternext(hash))) {
+			sv = hv_iterkeysv(entry);
+			SvREFCNT_inc(sv);
+			av_push(keys, sv);
+        }
+
+#ifdef USE_LOCALE_NUMERIC
+        sortsv(AvARRAY(keys), av_len(keys)+1, IN_LOCALE ? Perl_sv_cmp_locale : Perl_sv_cmp);
+#else
+        sortsv(AvARRAY(keys), av_len(keys)+1, Perl_sv_cmp);
+#endif
+
+#endif
+
+        for (i = 0; (I32)i <= av_len(keys); i++) {
+            svp = av_fetch(keys, i, FALSE);
+            key_sv = svp ? *svp : sv_mortalcopy(&PL_sv_undef);
+            
+            key = SvPV(key_sv, tmp_strlen);
+            key_len = tmp_strlen;
+            entry = hv_fetch_ent(hash, key_sv, 0, 0);
+            /* key = (unsigned char *)hv_iterkey(entry, &key_len); */
+            
+            /*
+            svp = hv_fetch(hash, key, SvUTF8(keysv) ? -key_len : keylen, 0); 
+		    val = svp ? *svp : sv_mortalcopy(&PL_sv_undef);
+            */
+            val = hv_iterval(hash, entry);
+
+            if (magic_ptr || SvTYPE(val) == SVt_PVMG) {
+                /* mg_get(val); */ /* crashes in Perl 5.8.5 if doesn't have "get magic" */
+                SvGETMAGIC(val);
+            }
+
+            UNLESS (first) {
+                sv_catpvn(rsv, ",", 1);
+            }
+
+            /* ref cnt for rsv is decremented in encode_hash_entry() if there is an error */
+            success = _encode_hash_entry(self, first, entry, key, key_len, key_sv, val, rsv,
+                indent_level, cur_level);
+
+            if (success != &PL_sv_yes) {
+                SvREFCNT_dec(keys);
+
+                return &PL_sv_undef;
+            }
+
+            first = 0;
+        }
+
+        SvREFCNT_dec(keys); keys = Nullav;
+    }
+    else {
+
+        /* non-sorted keys */
+        hv_iterinit(hash);
+        /* while ( (val = hv_iternextsv(hash, (char **)&key, &key_len)) ) { */
+        while (1) {
+            entry = hv_iternext(hash);
+            UNLESS (entry) {
+                break;
+            }
+
+            /* key_sv = HeSVKEY(entry); */
+            key = hv_iterkey(entry, &key_len);
+            /* key = (U8 *)HePV(entry, key_len); */
+            val = hv_iterval(hash, entry);
+
+            /* need to call mg_get(val) to get the actual value if this is a tied hash */
+            /* see sv_magic */
+            if (magic_ptr || SvTYPE(val) == SVt_PVMG) {
+                /* mg_get(val); */ /* crashes in Perl 5.8.5 if doesn't have "get magic" */
+                SvGETMAGIC(val);
+            }
+
+            UNLESS (first) {
+                sv_catpvn(rsv, ",", 1);
+            }
+
+            /* ref cnt for rsv is decremented in encode_hash_entry() if there is an error */
+            success = _encode_hash_entry(self, first, entry, key, key_len, Nullsv, val, rsv,
+                indent_level, cur_level);
+            if (success != &PL_sv_yes) {
+                return &PL_sv_undef;
+            }
+
+            first = 0;
+        }
+    }
+
+    if (self->flags & kPrettyPrint) {
+        sv_catpvn(rsv, "\n", 1);
+        num_spaces = indent_level * 4;
+        for (i = 0; i < num_spaces; i++) {
+            sv_catpvn(rsv, " ", 1);
+        }
+    }
+    sv_catpvn(rsv, "}", 1);
+
+    return rsv;
+}
+
+#if 0
+static SV *
+old_encode_hash(self_context * self, HV * hash, int indent_level, unsigned int cur_level) {
+
     SV * rsv = NULL;
     SV * tmp_sv = NULL;
     SV * tmp_sv2 = NULL;
@@ -686,6 +940,11 @@ encode_hash(self_context * self, HV * hash, int indent_level, unsigned int cur_l
     MAGIC * magic_ptr = NULL;
     HE * entry;
     /* SV * key_sv = NULL; */
+
+
+    if (self->flags & kSortKeys) {
+        return encode_hash2(self, hash, indent_level, cur_level);
+    }
 
     cur_level++;
     UPDATE_CUR_LEVEL(self, cur_level);
@@ -814,6 +1073,7 @@ encode_hash(self_context * self, HV * hash, int indent_level, unsigned int cur_l
 
     return rsv;
 }
+#endif
 
 static SV *
 to_json(self_context * self, SV * data_ref, int indent_level, unsigned int cur_level) {

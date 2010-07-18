@@ -4,7 +4,7 @@
 # Authors: don
 
 use strict;
-use Test::More tests => 17;
+use Test::More tests => 19;
 
 # main
 {
@@ -113,6 +113,17 @@ use Test::More tests => 17;
     $json_str = $json_obj->to_json($data);
     $json_str = $json_obj->to_json({ test => $json_str });
     ok($json_str eq '{"test":"{\\"stuff\\":\\"http:\\\\\\/\\\\\\/example.com\\\\\\/\\"}"}');
+
+
+    $data = { foo => 1, bar => 2, cat => 3, apple => 4 };
+    $json_str = $json_obj->to_json($data, { sort_keys => 1 });
+    $expected_str = '{"apple":4,"bar":2,"cat":3,"foo":1}';
+    ok($json_str eq $expected_str);
+
+    $data = { foo => 1, bar => 2, Cat => 3, apple => 4 };
+    $json_str = $json_obj->to_json($data, { sort_keys => 1 });
+    $expected_str = '{"Cat":3,"apple":4,"bar":2,"foo":1}';
+    ok($json_str eq $expected_str);
 
 }
 

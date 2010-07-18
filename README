@@ -179,6 +179,10 @@ METHODS
     newlines, backspaces, etc., will not be escaped with this optioned
     turned on (but the output will still be valid JSON).
 
+   sort_keys
+    Set to a true value to sort hash keys (alphabetically) when converting
+    to JSON.
+
    parse_number
     A subroutine reference to call when parsing a number. The subroutine
     will be provided one string that is the number being parsed. The return

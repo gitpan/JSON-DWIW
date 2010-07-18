@@ -14,7 +14,10 @@
 # warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
 # PURPOSE.
 
-# $Revision: 1641 $
+# $Revision: 1672 $
+
+# TODO
+#   * support surrogate pairs as described in http://www.ietf.org/rfc/rfc4627.txt
 
 =pod
 
@@ -184,7 +187,7 @@ require DynaLoader;
 Exporter::export_ok_tags('all');
 
 # change in POD as well!
-our $VERSION = '0.42';
+our $VERSION = '0.43';
 
 JSON::DWIW->bootstrap($VERSION);
 
@@ -310,6 +313,10 @@ Only do required escaping in strings (solidus and quote).  Tabs,
 newlines, backspaces, etc., will not be escaped with this
 optioned turned on (but the output will still be valid JSON).
 
+=head3 sort_keys
+
+Set to a true value to sort hash keys (alphabetically) when converting to JSON.
+
 =head3 parse_number
 
 A subroutine reference to call when parsing a number.  The
@@ -349,7 +356,7 @@ sub new {
     foreach my $field (qw/bare_keys use_exceptions bad_char_policy dump_vars pretty
                           escape_multi_byte convert_bool detect_circular_refs
                           ascii bare_solidus minimal_escaping
-                          parse_number parse_constant/) {
+                          parse_number parse_constant sort_keys/) {
         if (exists($params->{$field})) {
             $self->{$field} = $params->{$field};
         }
@@ -1030,6 +1037,13 @@ sub _jsonml_xml {
 
     return $xml;
 }
+
+# used from XS code to sort keys in Perl < 5.8.0 where we don't have
+# access to sortsv() from XS
+sub _sort_keys {
+    return [ sort keys %{ $_[0] } ]
+}
+
 
 =pod
 

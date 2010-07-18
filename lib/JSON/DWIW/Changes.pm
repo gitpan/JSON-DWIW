@@ -7,6 +7,14 @@ JSON::DWIW::Changes - List of significant changes to JSON::DWIW
 
 =head1 CHANGES
 
+=head2 Version 0.43
+
+=over 4
+
+=item added C<sort_keys> option when converting to JSON
+
+=back
+
 =head2 Version 0.42
 
 =over 4

@@ -34,6 +34,7 @@ Copyright (c) 2007-2010 Don Owens <don@regexguy.com>.  All rights reserved.
 #define kConvertBool (1 << 4)
 #define kBareSolidus (1 << 5)
 #define kMinimalEscaping (1 << 6)
+#define kSortKeys (1 << 7)
 
 #define kBadCharError 0
 #define kBadCharConvert 1
