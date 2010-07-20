@@ -7,6 +7,14 @@ JSON::DWIW::Changes - List of significant changes to JSON::DWIW
 
 =head1 CHANGES
 
+=head Version 0.44
+
+=over 4
+
+=item Fixed build problem under Perl 5.6
+
+=back
+
 =head2 Version 0.43
 
 =over 4

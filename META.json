@@ -1,5 +1,5 @@
 {
-    "version": "0.43",
+    "version": "0.44",
     "name": "JSON-DWIW",
     "abstract": "JSON converter that does what I want",
     "author": [ "Don Owens <don@regexguy.com>" ],

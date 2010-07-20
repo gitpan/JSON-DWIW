@@ -13,7 +13,7 @@ Copyright (c) 2007-2010 Don Owens <don@regexguy.com>.  All rights reserved.
  PURPOSE.
 */
 
-/* $Revision: 1672 $ */
+/* $Revision: 1675 $ */
 
 /* #define PERL_NO_GET_CONTEXT */
 
@@ -766,6 +766,9 @@ encode_hash(self_context * self, HV * hash, int indent_level, unsigned int cur_l
     AV * keys = Nullav;
     SV ** svp = (SV **)0;
     STRLEN tmp_strlen = 0;
+#if PERL_VERSION < 8
+    SV * sort_keys = Nullsv;
+#endif
 
     cur_level++;
     UPDATE_CUR_LEVEL(self, cur_level);
