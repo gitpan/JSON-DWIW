@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               JSON-DWIW
-version:            0.44
+version:            0.45
 abstract:           JSON converter that does what I want
 author:
     - DON OWENS <don@regexguy.com>

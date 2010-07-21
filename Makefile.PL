@@ -79,7 +79,7 @@ sub MY::postamble {
 #     $stuff .= "$make_conf: $make_conf.c\n\t$cc_main " . $exec_output_name->($make_conf)
 #         . " $make_conf.c\n\n";
 
-    $stuff .= "$config_h:\n\tcd $src_dir; ./configure && ./fixup_config '\$(ABSPERLRUN)'\n\n";
+    $stuff .= "$config_h:\n\tcd $src_dir; ./configure && ./fixup_config '\$(FULLPERL)'\n\n";
     
     $stuff .= $add_evt_obj->('jsonevt');
     $stuff .= $add_evt_obj->('json_writer');

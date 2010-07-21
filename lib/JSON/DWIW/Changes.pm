@@ -7,7 +7,15 @@ JSON::DWIW::Changes - List of significant changes to JSON::DWIW
 
 =head1 CHANGES
 
-=head Version 0.44
+=head2 VERSION 0.45
+
+=over 4
+
+=item Fixed build problem under Perl 5.6 on FreeBSD -- now use FULLPERL instead of ABSPERLRUN for the path to Perl used in fixup_config.
+
+=back
+
+=head2 Version 0.44
 
 =over 4
 

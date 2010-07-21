@@ -14,7 +14,7 @@
 # warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
 # PURPOSE.
 
-# $Revision: 1675 $
+# $Revision: 1679 $
 
 # TODO
 #   * support surrogate pairs as described in http://www.ietf.org/rfc/rfc4627.txt
@@ -187,7 +187,7 @@ require DynaLoader;
 Exporter::export_ok_tags('all');
 
 # change in POD as well!
-our $VERSION = '0.44';
+our $VERSION = '0.45';
 
 JSON::DWIW->bootstrap($VERSION);
 
@@ -1153,7 +1153,7 @@ PURPOSE.
 
 =head1 VERSION
 
-0.42
+0.45
 
 =cut
 
