@@ -9,6 +9,7 @@ use 5.006_00;
     
 use ExtUtils::MakeMaker;
 use File::Spec;
+use Config;
 
 my $src_dir = 'libjsonevt';
 
@@ -79,7 +80,22 @@ sub MY::postamble {
 #     $stuff .= "$make_conf: $make_conf.c\n\t$cc_main " . $exec_output_name->($make_conf)
 #         . " $make_conf.c\n\n";
 
-    $stuff .= "$config_h:\n\tcd $src_dir; ./configure && ./fixup_config '\$(FULLPERL)'\n\n";
+#     use Data::Dumper;
+#     $Data::Dumper::Sortkeys = 1;
+#     print STDERR Data::Dumper->Dump([ $self ], [ 'self' ]) . "\n\n";
+    
+#     my $perl_exec;
+#     for my $v (qw(FULLPERLRUN ABSPERLRUN FULLPERL ABSPERL)) {
+#         if (defined($self->{$v})) {
+#             $perl_exec = "\$($v)";
+#             last;
+#         }
+#     }
+
+    # my $perl_exec = $^X;
+    my $perl_exec = $Config::Config{perlpath};
+        
+    $stuff .= "$config_h:\n\tcd $src_dir; ./configure && ./fixup_config '$perl_exec'\n\n";
     
     $stuff .= $add_evt_obj->('jsonevt');
     $stuff .= $add_evt_obj->('json_writer');
