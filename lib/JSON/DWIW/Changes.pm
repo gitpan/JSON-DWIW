@@ -7,6 +7,14 @@ JSON::DWIW::Changes - List of significant changes to JSON::DWIW
 
 =head1 CHANGES
 
+=head2 VERSION 0.47
+
+=over 4
+
+=item Added the I<start_depth> and I<start_depth_handler> options
+
+=back
+
 =head2 VERSION 0.46
 
 =over 4

@@ -10,7 +10,7 @@ warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
 PURPOSE.
 */
 
-/* $Revision: 1571 $ */
+/* $Revision: 1737 $ */
 
 /* TODO:
    
@@ -92,6 +92,8 @@ typedef struct {
     uint options;
     SV *parse_number_cb;
     SV *parse_const_cb;
+    IV start_depth;
+    SV *start_depth_handler;
 } parse_callback_ctx;
 
 typedef struct {
@@ -104,6 +106,8 @@ typedef struct {
 /* #define GROW_STACK(ctx) ( ((ctx)->stack_size <<= 1), Renew((ctx)->stack, (ctx)->stack_size, parse_cb_stack_entry))
 */
 
+#define PARENT_STACK_ENTRY(ctx) ( (ctx)->stack_level > 0 ? \
+        (parse_cb_stack_entry *)((ctx)->stack + (ctx)->stack_level - 1)  : NULL )
 #define ENSURE_STACK(ctx) ( (ctx)->stack_level >= (ctx)->stack_size - 1 ? GROW_STACK(ctx) : 0 )
 #define CUR_STACK_LEVEL(ctx) ((ctx)->stack_level)
 #define CUR_STACK_ENTRY(ctx) ( (parse_cb_stack_entry *)((ctx)->stack + (ctx)->stack_level) )
@@ -558,7 +562,60 @@ array_end_callback(void * cb_data, uint flags, uint level) {
     if (CUR_STACK_LEVEL(ctx) > 0) {
         POP_STACK(ctx);
     }
+
     LOG_DEBUG("\nin array_end callback at level %u\n", level);
+
+    return 0;
+}
+
+
+static int
+array_element_end_callback(void * cb_data, uint flags, uint level) {
+    parse_callback_ctx * ctx = (parse_callback_ctx *)cb_data;
+
+    LOG_DEBUG("\nin array element end callback at level %u\n", level);
+
+    /*
+    fprintf(stderr, "=====> HERE 4 -- start_depth=%d, level=%u\n", (int)ctx->start_depth,
+        level);
+    */
+
+    if (level == ctx->start_depth && ctx->start_depth > 0
+        && ctx->start_depth_handler) {
+        SV *rv;
+        parse_cb_stack_entry *entry = CUR_STACK_ENTRY(ctx);
+        SV *val;
+
+        val = av_pop((AV *)SvRV(entry->data));
+
+        rv = json_call_function_one_arg_one_return(ctx->start_depth_handler, val);
+
+        /*
+          parse_cb_stack_entry *entry = CUR_STACK_ENTRY(ctx);
+          SV *data = entry->data;
+          SV *rv;
+
+          data = av_pop((AV *)entry->data);
+        */
+
+        /* rv will be a mortal, so don't decrement it's ref count */
+        /* rv = json_call_function_one_arg_one_return(ctx->start_depth_handler, data); */
+ 
+        /* POP_STACK(ctx); */
+        /* entry = CUR_STACK_ENTRY(ctx); */
+ 
+        /*
+          data = av_pop((AV *)entry->data);
+          SvREFCNT_dec(data);
+        */
+
+        /* FIXME: check whether ref count gets decremented when popped off the array */
+
+        UNLESS (SvOK(rv)) {
+            return 1;
+        }
+    }
+
 
     return 0;
 }
@@ -571,12 +628,6 @@ array_element_begin_callback(void * cb_data, uint flags, uint level) {
     return 0;
 }
 
-static int
-array_element_end_callback(void * cb_data, uint flags, uint level) {
-    LOG_DEBUG("\nin array element end callback at level %u\n", level);
-
-    return 0;
-}
 #endif
 
 static int
@@ -607,8 +658,8 @@ hash_end_callback(void * cb_data, uint flags, uint level) {
 #if 0
 static int
 hash_entry_begin_callback(void * cb_data, uint flags, uint level) {
-    /* parse_callback_ctx * ctx = (parse_callback_ctx *)cb_data; */
 
+    /* parse_callback_ctx * ctx = (parse_callback_ctx *)cb_data; */
     LOG_DEBUG("in hash_entry_begin callback at level %u", level);
 
     return 0;
@@ -691,8 +742,10 @@ sv_str_eq(SV * sv_val, const char * c_buf, STRLEN c_buf_len) {
 }
 
 static int
-setup_options(jsonevt_ctx * json_ctx, parse_callback_ctx *
-ctx, SV * self_sv) { SV ** ptr; HV * self_hash; IV num_keys = 0;
+setup_options(jsonevt_ctx * json_ctx, parse_callback_ctx * ctx, SV * self_sv) {
+    SV ** ptr;
+    HV * self_hash;
+    IV num_keys = 0;
 
     UNLESS (self_sv) {
         return 0;
@@ -743,6 +796,20 @@ ctx, SV * self_sv) { SV ** ptr; HV * self_hash; IV num_keys = 0;
     ptr = hv_fetch((HV *)self_hash, "parse_constant", 14, 0);
     if (ptr && SvTRUE(*ptr)) {
         ctx->parse_const_cb = newSVsv(*ptr);
+    }
+
+    ptr = hv_fetch((HV *)self_hash, "start_depth", 11, 0);
+    if (ptr && SvOK(*ptr)) {
+        ctx->start_depth = SvIV(*ptr);
+        ptr = hv_fetch((HV *)self_hash, "start_depth_handler", 19, 0);
+
+        if (ptr && SvOK(*ptr)) {
+            ctx->start_depth_handler = *ptr;
+            SvREFCNT_inc(ctx->start_depth_handler);
+        }
+    }
+    else {
+        ctx->start_depth = -1;
     }
 
     return 1;
@@ -803,8 +870,9 @@ init_cbs(perl_wrapper_ctx * pwctx, SV * self_sv) {
         jsonevt_set_end_array_cb(ctx, array_end_callback);
         /*
           jsonevt_set_begin_array_element_cb(ctx, array_element_begin_callback);
-          jsonevt_set_end_array_element_cb(ctx, array_element_end_callback);
         */
+        jsonevt_set_end_array_element_cb(ctx, array_element_end_callback);
+
         jsonevt_set_begin_hash_cb(ctx, hash_begin_callback);
         jsonevt_set_end_hash_cb(ctx, hash_end_callback);
         /*
@@ -939,6 +1007,10 @@ handle_parse_result(int result, jsonevt_ctx * ctx, perl_wrapper_ctx * wctx) {
 
     if (wctx->cbd.parse_const_cb) {
         SvREFCNT_dec(wctx->cbd.parse_const_cb);
+    }
+
+    if (wctx->cbd.start_depth_handler) {
+        SvREFCNT_dec(wctx->cbd.start_depth_handler);
     }
 
     /* change to json_reset_ctx(ctx) once we start reusing the ctx from libjsonevt */

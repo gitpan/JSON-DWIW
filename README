@@ -35,6 +35,9 @@ SYNOPSIS
                   var3 => $false_value, };
      my $str = JSON::DWIW->to_json($data);
 
+     my $data = JSON::DWIW::deserialize($str, { start_depth => 1,
+                                                start_depth_handler => $handler });
+
 DESCRIPTION
     Other JSON modules require setting several parameters before calling the
     conversion methods to do what I want. This module does things by default
@@ -114,54 +117,54 @@ DESCRIPTION
          # this is also a comment
 
 METHODS
-  new(\%options)
+  "new(\%options)"
     Create a new JSON::DWIW object.
 
     %options is an optional hash of parameters that will change the bahavior
     of this module when encoding to JSON. You may also pass these options as
-    the second argument to to_json() and from_json(). The following options
-    are supported:
+    the second argument to "to_json()" and "from_json()". The following
+    options are supported:
 
-   bare_keys
+   *bare_keys*
     If set to a true value, keys in hashes will not be quoted when converted
     to JSON if they look like identifiers. This is valid Javascript in
     current browsers, but not in JSON.
 
-   use_exceptions
+   *use_exceptions*
     If set to a true value, errors found when converting to or from JSON
-    will result in die() being called with the error message. The default is
-    to not use exceptions.
+    will result in "die()" being called with the error message. The default
+    is to not use exceptions.
 
-   bad_char_policy
+   *bad_char_policy*
     This options indicates what should be done if bad characters are found,
     e.g., bad utf-8 sequence. The default is to return an error and drop all
     the output.
 
     The following values for bad_char_policy are supported:
 
-   error
+   *error*
     default action, i.e., drop any output built up and return an error
 
-   convert
+   *convert*
     Convert to a utf-8 char using the value of the byte as a code point.
     This is basically the same as assuming the bad character is in latin-1
     and converting it to utf-8.
 
-   pass_through
+   *pass_through*
     Ignore the error and pass through the raw bytes (invalid JSON)
 
-   escape_multi_byte
+   *escape_multi_byte*
     If set to a true value, escape all multi-byte characters (e.g., \u00e9)
     when converting to JSON.
 
-   ascii
+   *ascii*
     Synonym for escape_multi_byte
 
-   pretty
+   *pretty*
     Add white space to the output when calling to_json() to make the output
     easier for humans to read.
 
-   convert_bool
+   *convert_bool*
     When converting from JSON, return objects for booleans so that "true"
     and "false" can be maintained when encoding and decoding. If this flag
     is set, then "true" becomes a JSON::DWIW::Boolean object that evaluates
@@ -170,20 +173,20 @@ METHODS
     the to_json() method, so they will be output as "true" or "false"
     instead of "1" or "0".
 
-   bare_solidus
+   *bare_solidus*
     Don't escape solidus characters ("/") in strings. The output is still
     legal JSON with this option turned on.
 
-   minimal_escaping
+   *minimal_escaping*
     Only do required escaping in strings (solidus and quote). Tabs,
     newlines, backspaces, etc., will not be escaped with this optioned
     turned on (but the output will still be valid JSON).
 
-   sort_keys
+   *sort_keys*
     Set to a true value to sort hash keys (alphabetically) when converting
     to JSON.
 
-   parse_number
+   *parse_number*
     A subroutine reference to call when parsing a number. The subroutine
     will be provided one string that is the number being parsed. The return
     value from the subroutine will be used to populate the return data
@@ -196,14 +199,61 @@ METHODS
      
   my $data = JSON::DWIW::deserialize($json, { parse_number => $cb });
 
-   parse_constant
+   *parse_constant*
     A subroutine reference to call when parsing a constant (true, false, or
     null). The subroutine will be provided one string that is the constant
     being parsed. The return value from the subroutine will be used to
     populate the return data instead of converting to a boolean or undef.
     See the "parse_number" option.
 
-  to_json
+   *start_depth*
+    Depth at which "start_depth_handler" should be called. See
+    "start_depth_handler".
+
+   *start_depth_handler*
+    A reference to a subroutine to called when parsing and at level
+    *start_depth* in the data structure. When specified along with
+    *start_depth*, the parser does not return the entire data structure.
+    Instead, it calls *start_depth_handler* for each element in the array
+    when the parser is at level *start_depth*. This is useful for parsing a
+    very large array without loading all the data into memory (especially
+    when using "deserialize_file").
+
+    E.g., with *start_depth* set to 1 and *start_depth_handler* set to
+    $handler:
+
+        my $str = '[ { "foo": "bar", "cat": 1 }, { "concat": 1, "lambda" : [ "one", 2, 3 ] } ]';
+     
+    my $foo = { foo => [ ] };
+        my $handler = sub { push @{$foo->{foo}}, $_[0]; return 1; };
+     
+    my $data = JSON::DWIW::deserialize($str, { start_depth => 1,
+                                                   start_depth_handler => $handler });
+        print STDERR Data::Dumper->Dump([ $foo ], [ 'foo' ]) . "\n";
+        print STDERR Data::Dumper->Dump([ $data ], [ 'leftover_data' ]) . "\n";
+
+        # Output
+        $foo = {
+                 'foo' => [
+                            {
+                              'cat' => 1,
+                              'foo' => 'bar'
+                            },
+                            {
+                              'lambda' => [
+                                          'one',
+                                          2,
+                                          3
+                                        ],
+                              'concat' => 1
+                            }
+                          ]
+               };
+
+
+        $leftover_data = [];
+
+  "to_json"
     Returns the JSON representation of $data (arbitrary datastructure). See
     http://www.json.org/ for details.
 
@@ -221,7 +271,7 @@ METHODS
 
     Aliases: toJson, toJSON, objToJson
 
-  deserialize($json_str, \%options)
+  "deserialize($json_str, \%options)"
     Returns the Perl data structure for the given JSON string. The value for
     true becomes 1, false becomes 0, and null gets converted to undef.
 
@@ -231,12 +281,12 @@ METHODS
     check the result of the "get_error_string()" function/method to see if
     an error is defined.
 
-  deserialize_file($file, \%options)
+  "deserialize_file($file, \%options)"
     Same as deserialize, except that it takes a file as an argument. On
     Unix, this mmap's the file, so it does not load a big file into memory
     all at once, and does less buffer copying.
 
-  from_json
+  "from_json"
     Similar to "deserialize()", but expects to be called as a method.
 
     Called in list context, this method returns a list whose first element
@@ -251,21 +301,21 @@ METHODS
 
     Aliases: fromJson, fromJSON, jsonToObj
 
-  from_json_file
+  "from_json_file"
     Similar to "deserialize_file()", except that it expects to be called a a
     method, and it also returns the error, if any, when called in list
     context.
 
     my ($data, $error_msg) = $json->from_json_file($file, \%options)
 
-  to_json_file
+  "to_json_file"
     Converts $data to JSON and writes the result to the file $file.
     Currently, this is simply a convenience routine that converts the data
     to a JSON string and then writes it to the file.
 
      my ($ok, $error) = $json->to_json_file($data, $file, \%options);
 
-  get_error_string
+  "get_error_string"
     Returns the error message from the last call, if there was one, e.g.,
 
      my $data = JSON::DWIW->from_json($json_str)
@@ -276,7 +326,7 @@ METHODS
 
     Aliases: get_err_str(), errstr()
 
-  get_error_data
+  "get_error_data"
     Returns the error details from the last call, in a hash ref, e.g.,
 
      $error_data = {
@@ -292,7 +342,7 @@ METHODS
 
     Aliases: get_error(), error()
 
-  get_stats
+  "get_stats"
     Returns statistics from the last method called to encode or decode.
     E.g., for an encoding ("to_json()" or "to_json_file()"),
 
@@ -311,15 +361,15 @@ METHODS
                    'hashes' => 1
                  };
 
-  true
+  "true"
     Returns an object that will get output as a true value when encoding to
     JSON.
 
-  false
+  "false"
     Returns an object that will get output as a false value when encoding to
     JSON.
 
-  json_to_xml($json, \%params)
+  "json_to_xml($json, \%params)"
     This function (not a method) converts the given JSON to XML. Hash/object
     keys become tag names. Arrays that are hash values are output as
     multiple tags with the hash key as the tag name.
@@ -335,39 +385,39 @@ METHODS
 Utilities
     Following are some methods I use for debugging and testing.
 
-  flagged_as_utf8($str)
+  "flagged_as_utf8($str)"
     Returns true if the given string is flagged as utf-8.
 
-  flag_as_utf8($str)
+  "flag_as_utf8($str)"
     Flags the given string as utf-8.
 
-  unflag_as_utf8($str)
+  "unflag_as_utf8($str)"
     Clears the flag that tells Perl the string is utf-8.
 
-  is_valid_utf8($str);
+  "is_valid_utf8($str)"
     Returns true if the given string is valid utf-8 (regardless of the
     flag).
 
-  upgrade_to_utf8($str)
+  "upgrade_to_utf8($str)"
     Converts the string to utf-8, assuming it is latin1. This effects $str
     itself in place, but also returns $str.
 
-  code_point_to_utf8_str($cp)
+  "code_point_to_utf8_str($cp)"
     Returns a utf8 string containing the byte sequence for the given code
     point.
 
-  code_point_to_hex_bytes($cp)
+  "code_point_to_hex_bytes($cp)"
     Returns a string representing the byte sequence for $cp encoding in
     utf-8. E.g.,
 
      my $hex_bytes = JSON::DWIW->code_point_to_hex_bytes(0xe9);
      print "$hex_bytes\n"; # \xc3\xa9
 
-  bytes_to_code_points($str)
+  "bytes_to_code_points($str)"
     Returns a reference to an array of code points from the given string,
     assuming the string is encoded in utf-8.
 
-  peek_scalar($scalar)
+  "peek_scalar($scalar)"
     Dumps the internal structure of the given scalar.
 
 BENCHMARKS
@@ -416,7 +466,4 @@ SEE ALSO
     <http://json-rpc.org/wd/JSON-RPC-1-1-WD-20060807.html>
     JSON
     JSON::Syck (included in YAML::Syck)
-
-VERSION
-    0.46
 

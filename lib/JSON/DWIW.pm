@@ -14,10 +14,13 @@
 # warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
 # PURPOSE.
 
-# $Revision: 1680 $
+# $Revision: 1737 $
 
 # TODO
 #   * support surrogate pairs as described in http://www.ietf.org/rfc/rfc4627.txt
+#   * check for first surrogate: 0xD800 => 0xDBFF
+#   * check for second surrogate: 0xDC00 => 0xDFFF
+#   * take code point - 0x10000, add lower 10 bits to second surrogate, add upper 10 bits to first
 
 =pod
 
@@ -59,6 +62,9 @@ JSON::DWIW - JSON converter that Does What I Want
  my $data = { var1 => "stuff", var2 => $true_value,
               var3 => $false_value, };
  my $str = JSON::DWIW->to_json($data);
+
+ my $data = JSON::DWIW::deserialize($str, { start_depth => 1,
+                                            start_depth_handler => $handler });
 
 
 =head1 DESCRIPTION
@@ -187,7 +193,7 @@ require DynaLoader;
 Exporter::export_ok_tags('all');
 
 # change in POD as well!
-our $VERSION = '0.46';
+our $VERSION = '0.47';
 
 JSON::DWIW->bootstrap($VERSION);
 
@@ -235,28 +241,28 @@ sub import {
 
 =head1 METHODS
 
-=head2 new(\%options)
+=head2 C<new(\%options)>
 
 Create a new L<JSON::DWIW> object.
 
-%options is an optional hash of parameters that will change the
+C<%options> is an optional hash of parameters that will change the
 bahavior of this module when encoding to JSON.  You may also
-pass these options as the second argument to to_json() and
-from_json().  The following options are supported:
+pass these options as the second argument to C<to_json()> and
+C<from_json()>.  The following options are supported:
 
-=head3 bare_keys
+=head3 I<bare_keys>
 
 If set to a true value, keys in hashes will not be quoted when
 converted to JSON if they look like identifiers.  This is valid
 Javascript in current browsers, but not in JSON.
 
-=head3 use_exceptions
+=head3 I<use_exceptions>
 
 If set to a true value, errors found when converting to or from
-JSON will result in die() being called with the error message.
+JSON will result in C<die()> being called with the error message.
 The default is to not use exceptions.
 
-=head3 bad_char_policy
+=head3 I<bad_char_policy>
 
 This options indicates what should be done if bad characters are
 found, e.g., bad utf-8 sequence.  The default is to return an
@@ -264,35 +270,35 @@ error and drop all the output.
 
 The following values for bad_char_policy are supported:
 
-=head4 error
+=head4 I<error>
 
 default action, i.e., drop any output built up and return an error
 
-=head4 convert
+=head4 I<convert>
 
 Convert to a utf-8 char using the value of the byte as a code
 point.  This is basically the same as assuming the bad character
 is in latin-1 and converting it to utf-8.
 
-=head4 pass_through
+=head4 I<pass_through>
 
 Ignore the error and pass through the raw bytes (invalid JSON)
 
-=head3 escape_multi_byte
+=head3 I<escape_multi_byte>
 
 If set to a true value, escape all multi-byte characters (e.g.,
 \u00e9) when converting to JSON.
 
-=head3 ascii
+=head3 I<ascii>
 
 Synonym for escape_multi_byte
 
-=head3 pretty
+=head3 I<pretty>
 
 Add white space to the output when calling to_json() to make the
 output easier for humans to read.
 
-=head3 convert_bool
+=head3 I<convert_bool>
 
 When converting from JSON, return objects for booleans so that
 "true" and "false" can be maintained when encoding and decoding.
@@ -302,22 +308,22 @@ becomes an object that evaluates to false in a boolean context.
 These objects are recognized by the to_json() method, so they
 will be output as "true" or "false" instead of "1" or "0".
 
-=head3 bare_solidus
+=head3 I<bare_solidus>
 
 Don't escape solidus characters ("/") in strings.  The output is
 still legal JSON with this option turned on.
 
-=head3 minimal_escaping
+=head3 I<minimal_escaping>
 
 Only do required escaping in strings (solidus and quote).  Tabs,
 newlines, backspaces, etc., will not be escaped with this
 optioned turned on (but the output will still be valid JSON).
 
-=head3 sort_keys
+=head3 I<sort_keys>
 
 Set to a true value to sort hash keys (alphabetically) when converting to JSON.
 
-=head3 parse_number
+=head3 I<parse_number>
 
 A subroutine reference to call when parsing a number.  The
 subroutine will be provided one string that is the number being
@@ -331,13 +337,60 @@ E.g.,
  
   my $data = JSON::DWIW::deserialize($json, { parse_number => $cb });
 
-=head3 parse_constant
+=head3 I<parse_constant>
 
 A subroutine reference to call when parsing a constant (true,
 false, or null).  The subroutine will be provided one string that
 is the constant being parsed.  The return value from the
 subroutine will be used to populate the return data instead of
 converting to a boolean or undef.  See the "parse_number" option.
+
+=head3 I<start_depth>
+
+Depth at which C<start_depth_handler> should be called.  See L</start_depth_handler>.
+
+=head3 I<start_depth_handler>
+
+A reference to a subroutine to called when parsing and at level
+I<start_depth> in the data structure.  When specified along with I<start_depth>, the
+parser does not return the entire data structure.  Instead, it
+calls I<start_depth_handler> for each element in the array when
+the parser is at level I<start_depth>.  This is useful for
+parsing a very large array without loading all the data into
+memory (especially when using C<deserialize_file>).
+
+E.g., with I<start_depth> set to 1 and I<start_depth_handler> set to C<$handler>:
+
+    my $str = '[ { "foo": "bar", "cat": 1 }, { "concat": 1, "lambda" : [ "one", 2, 3 ] } ]';
+ 
+    my $foo = { foo => [ ] };
+    my $handler = sub { push @{$foo->{foo}}, $_[0]; return 1; };
+ 
+    my $data = JSON::DWIW::deserialize($str, { start_depth => 1,
+                                               start_depth_handler => $handler });
+    print STDERR Data::Dumper->Dump([ $foo ], [ 'foo' ]) . "\n";
+    print STDERR Data::Dumper->Dump([ $data ], [ 'leftover_data' ]) . "\n";
+
+    # Output
+    $foo = {
+             'foo' => [
+                        {
+                          'cat' => 1,
+                          'foo' => 'bar'
+                        },
+                        {
+                          'lambda' => [
+                                      'one',
+                                      2,
+                                      3
+                                    ],
+                          'concat' => 1
+                        }
+                      ]
+           };
+
+
+    $leftover_data = [];
 
 =cut
 
@@ -356,7 +409,7 @@ sub new {
     foreach my $field (qw/bare_keys use_exceptions bad_char_policy dump_vars pretty
                           escape_multi_byte convert_bool detect_circular_refs
                           ascii bare_solidus minimal_escaping
-                          parse_number parse_constant sort_keys/) {
+                          parse_number parse_constant sort_keys start_depth start_depth_handler/) {
         if (exists($params->{$field})) {
             $self->{$field} = $params->{$field};
         }
@@ -367,7 +420,7 @@ sub new {
 
 =pod
 
-=head2 to_json
+=head2 C<to_json>
 
 Returns the JSON representation of $data (arbitrary
 datastructure).  See http://www.json.org/ for details.
@@ -484,7 +537,7 @@ sub get_proc_size {
 
 =pod
 
-=head2 deserialize($json_str, \%options)
+=head2 C<deserialize($json_str, \%options)>
 
 Returns the Perl data structure for the given JSON string.  The
 value for true becomes 1, false becomes 0, and null gets
@@ -496,7 +549,7 @@ data structure resulting from the conversion.  If the return
 value is undef, check the result of the C<get_error_string()>
 function/method to see if an error is defined.
 
-=head2 deserialize_file($file, \%options)
+=head2 C<deserialize_file($file, \%options)>
 
 Same as deserialize, except that it takes a file as an argument.
 On Unix, this mmap's the file, so it does not load a big file
@@ -506,7 +559,7 @@ into memory all at once, and does less buffer copying.
 
 =pod
 
-=head2 from_json
+=head2 C<from_json>
 
 Similar to C<deserialize()>, but expects to be called as a method.
 
@@ -580,7 +633,7 @@ sub from_json {
 
 =pod
 
-=head2 from_json_file
+=head2 C<from_json_file>
 
 Similar to C<deserialize_file()>, except that it expects to be
 called a a method, and it also returns the error, if any, when called
@@ -636,7 +689,7 @@ sub from_json_file {
 
 =pod
 
-=head2 to_json_file
+=head2 C<to_json_file>
 
 Converts C<$data> to JSON and writes the result to the file C<$file>.
 Currently, this is simply a convenience routine that converts
@@ -734,7 +787,7 @@ sub parse_mmap_file {
 
 =pod
 
-=head2 get_error_string
+=head2 C<get_error_string>
 
 Returns the error message from the last call, if there was one, e.g.,
 
@@ -762,7 +815,7 @@ sub get_error_string {
 
 =pod
 
-=head2 get_error_data
+=head2 C<get_error_data>
 
 Returns the error details from the last call, in a hash ref, e.g.,
 
@@ -794,7 +847,7 @@ sub get_error_data {
 
 =pod
 
-=head2 get_stats
+=head2 C<get_stats>
 
 Returns statistics from the last method called to encode or
 decode.  E.g., for an encoding (C<to_json()> or C<to_json_file()>),
@@ -828,7 +881,7 @@ sub get_stats {
 
 =pod
 
-=head2 true
+=head2 C<true>
 
 Returns an object that will get output as a true value when encoding to JSON.
 
@@ -840,7 +893,7 @@ sub true {
 
 =pod
 
-=head2 false
+=head2 C<false>
 
 Returns an object that will get output as a false value when encoding to JSON.
 
@@ -953,7 +1006,7 @@ sub _data_to_xml {
 
 =pod
 
-=head2 json_to_xml($json, \%params)
+=head2 C<json_to_xml($json, \%params)>
 
 This function (not a method) converts the given JSON to XML.
 Hash/object keys become tag names.  Arrays that are hash values
@@ -1051,42 +1104,42 @@ sub _sort_keys {
 
 Following are some methods I use for debugging and testing.
 
-=head2 flagged_as_utf8($str)
+=head2 C<flagged_as_utf8($str)>
 
 Returns true if the given string is flagged as utf-8.
 
-=head2 flag_as_utf8($str)
+=head2 C<flag_as_utf8($str)>
 
 Flags the given string as utf-8.
 
-=head2 unflag_as_utf8($str)
+=head2 C<unflag_as_utf8($str)>
 
 Clears the flag that tells Perl the string is utf-8.
 
-=head2 is_valid_utf8($str);
+=head2 C<is_valid_utf8($str)>
 
 Returns true if the given string is valid utf-8 (regardless of the flag).
 
-=head2 upgrade_to_utf8($str)
+=head2 C<upgrade_to_utf8($str)>
 
 Converts the string to utf-8, assuming it is latin1.  This effects $str itself in place, but also returns $str.
 
-=head2 code_point_to_utf8_str($cp)
+=head2 C<code_point_to_utf8_str($cp)>
 
 Returns a utf8 string containing the byte sequence for the given code point.
 
-=head2 code_point_to_hex_bytes($cp)
+=head2 C<code_point_to_hex_bytes($cp)>
 
 Returns a string representing the byte sequence for $cp encoding in utf-8.  E.g.,
 
  my $hex_bytes = JSON::DWIW->code_point_to_hex_bytes(0xe9);
  print "$hex_bytes\n"; # \xc3\xa9
 
-=head2 bytes_to_code_points($str)
+=head2 C<bytes_to_code_points($str)>
 
 Returns a reference to an array of code points from the given string, assuming the string is encoded in utf-8.
 
-=head2 peek_scalar($scalar)
+=head2 C<peek_scalar($scalar)>
 
 Dumps the internal structure of the given scalar.
 
@@ -1150,10 +1203,6 @@ PURPOSE.
 =item L<JSON::Syck> (included in L<YAML::Syck>)
 
 =back
-
-=head1 VERSION
-
-0.46
 
 =cut
 
